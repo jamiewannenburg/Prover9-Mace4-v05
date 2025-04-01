@@ -20,17 +20,29 @@
 # system imports
 
 import os, wx, re, copy
+# TODO: if _thread does not work, use threading
 import time, _thread, tempfile, subprocess, signal
 import sys
 
 # local imports
 
 import utilities
-from files import *
-from platforms import *
-from wx_utilities import *
-from my_setup import *
-from options import *
+from files import bin_dir, image_dir, binary_ok
+from platforms import Win32, Mac
+if Win32():
+    import win32api, win32process
+from wx_utilities import (
+    State, to_top, error_dialog, info_dialog, Text_frame, pos_for_center,
+    max_width, Invoke_event, Busy_bar, Mini_info
+)
+from options import (
+    # Functions
+    update_label, update_shared,
+    # Option indexes
+    Id, Label_id, Share, Depend, Type, Name, Value, Default, Range, Tip
+)
+# Moved this import to avoid circular dependency
+# from my_setup import Setup_tabs
 
 def run_and_wait(command, input = '', fin = None):
 
@@ -72,7 +84,7 @@ def ops_in_interp(s):
     if i >= 0:
         j = s.find(').', i+1)
         interp = s[i:j+2]
-        r = re.compile('(?:function|relation)\(([^,(]*)')
+        r = re.compile(r'(?:function|relation)\(([^,(]*)')
         m = r.search(interp)
         while m:
             op = m.group(1)
@@ -93,8 +105,8 @@ class Prover9:
 
     # Compile regular expression for extracting stats from stderr.
 
-    r_info = re.compile('Given=(\d+)\. Generated=(\d+)\. Kept=(\d+)\. '
-                        'proofs=(\d+)\.User_CPU=(\d*\.\d*),')
+    r_info = re.compile(r'Given=(\d+)\. Generated=(\d+)\. Kept=(\d+)\. '
+                        r'proofs=(\d+)\.User_CPU=(\d*\.\d*),')
 
     exits = {}
     exits[0]   = 'Proof'
@@ -183,7 +195,7 @@ class Mace4:
     
     # Compile regular expression for extracting stats from stderr.
     # Domain_size=8. Models=0. User_CPU=8.00.
-    r_info = re.compile('Domain_size=(\d+)\. Models=(\d+)\. User_CPU=(\d*\.\d*)\.')
+    r_info = re.compile(r'Domain_size=(\d+)\. Models=(\d+)\. User_CPU=(\d*\.\d*)\.')
 
     exits = {}
     exits[0]   = 'Model(s)'
@@ -525,7 +537,7 @@ class Run_program:
                 os.kill(self.process.pid, signal.SIGKILL)
 
     def done_with_job(self):
-	if self.fin:  # if one exists, all exist
+        if self.fin:  # if one exists, all exist
             self.fin.close()
             self.fout.close()
             self.ferr.close()
@@ -567,7 +579,7 @@ class Program_panel(wx.Panel):
             self.time_ctrl.SetValue(opt[Default])
         else:
             error_dialog('error sharing max_second option (%s)' % program.name)
-            self.time_ctrl = wx.SpinCtrl(self, id, min=-1, max=sys.maxint,
+            self.time_ctrl = wx.SpinCtrl(self, id, min=-1, max=sys.maxsize,
                                          size=(75,-1))
             self.time_ctrl.SetValue(60)
 
@@ -629,8 +641,8 @@ class Program_panel(wx.Panel):
         self.info_btn.Enable(False)
         
         self.show_save_btn = wx.Button(self, -1, 'Show/Save')
-	if not Mac():
-	    self.show_save_btn.SetToolTipString(
+        if not Mac():
+            self.show_save_btn.SetToolTipString(
               'The choices refer to the most recent %s search.' % program.name)
         self.Bind(wx.EVT_BUTTON, self.on_show_save, self.show_save_btn)
         self.show_save_btn.Enable(False)
@@ -662,7 +674,7 @@ class Program_panel(wx.Panel):
             self.info_btn.Enable(False)
             if self.job.state != State.done:
                 self.timer = wx.Timer(self, -1)
-                wx.EVT_TIMER(self, self.timer.GetId(), self.update_info)
+                self.Bind(wx.EVT_TIMER, self.update_info, self.timer)
                 self.timer.Start(2000)  # milliseconds
 
     def update_info(self, evt):

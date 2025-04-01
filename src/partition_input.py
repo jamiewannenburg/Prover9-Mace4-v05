@@ -85,36 +85,36 @@ def partition(input):
 
     # if(Prover9). ... end_if.
 
-    start_pat = 'if\s*\(\s*Prover9\s*\)\s*\.'
-    end_pat   = 'end_if\s*\.'
+    start_pat = r'if\s*\(\s*Prover9\s*\)\s*\.'
+    end_pat   = r'end_if\s*\.'
     (p9, work) = split2(work, start_pat, end_pat, remove_patterns = True)
 
     # if(Prover9). ... end_if.
 
-    start_pat = 'if\s*\(\s*Mace4\s*\)\s*\.'
-    end_pat   = 'end_if\s*\.'
+    start_pat = r'if\s*\(\s*Mace4\s*\)\s*\.'
+    end_pat   = r'end_if\s*\.'
     (m4, work) = split2(work, start_pat, end_pat, remove_patterns = True)
 
     # assumptions|sos
 
-    start_pat = 'formulas\s*\(\s*(assumptions|sos)\s*\)\s*\.'
-    end_pat   = 'end_of_list\s*\.'
+    start_pat = r'formulas\s*\(\s*(assumptions|sos)\s*\)\s*\.'
+    end_pat   = r'end_of_list\s*\.'
     (assumps, work) = split2(work, start_pat, end_pat, remove_patterns = True)
 
     # goals
 
-    start_pat = 'formulas\s*\(\s*goals\s*\)\s*\.'
-    end_pat   = 'end_of_list\s*\.'
+    start_pat = r'formulas\s*\(\s*goals\s*\)\s*\.'
+    end_pat   = r'end_of_list\s*\.'
     (goals, work) = split2(work, start_pat, end_pat, remove_patterns = True)
 
     # flags, parm, stringparms
 
-    pat = '((set|clear)\s*\(\s*[a-z0-9_]+\s*\)\s*\.|assign\s*\(\s*[a-z0-9_]+\s*,\s*[a-z0-9_-]+\s*\)\s*\.)'
+    pat = r'((set|clear)\s*\(\s*[a-z0-9_]+\s*\)\s*\.|assign\s*\(\s*[a-z0-9_]+\s*,\s*[a-z0-9_-]+\s*\)\s*\.)'
     (opt, work) = split1(work, pat)
 
     # op, redeclare
 
-    pat = '(op\s*\([^,()]+,[^,()]+,[^,()]+\)\s*\.|redeclare\s*\([^,()]+,[^,()]+\)\s*\.)'
+    pat = r'(op\s*\([^,()]+,[^,()]+,[^,()]+\)\s*\.|redeclare\s*\([^,()]+,[^,()]+\)\s*\.)'
     (language, work) = split1(work, pat)
 
     # Clean up and return
@@ -130,7 +130,7 @@ def extract_options(input):
 
     # flags, parm, stringparms
 
-    pat = '((set|clear)\s*\(\s*[a-z0-9_]+\s*\)\s*\.|assign\s*\(\s*[a-z0-9_-]+\s*,\s*[a-z0-9_]+\s*\)\s*\.)'
+    pat = r'((set|clear)\s*\(\s*[a-z0-9_]+\s*\)\s*\.|assign\s*\(\s*[a-z0-9_-]+\s*,\s*[a-z0-9_]+\s*\)\s*\.)'
     (opt, work) = split1(work, pat)
 
     work = work.strip() + '\n'
@@ -145,9 +145,9 @@ if __name__ == '__main__':
 
     (p9,m4,a,g,opt,other) = partition(input)
 
-    print '% p9:\n' + p9
-    print '% m4:\n' + m4
-    print '% assumptions:\n' + a
-    print '% goals:\n' + g
-    print '% options:\n' + opt
-    print '% other:\n' + other
+    print('% p9:\n' + p9)
+    print('% m4:\n' + m4)
+    print('% assumptions:\n' + a)
+    print('% goals:\n' + g)
+    print('% options:\n' + opt)
+    print('% other:\n' + other)

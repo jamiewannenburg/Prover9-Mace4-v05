@@ -19,329 +19,323 @@
 
 # system imports
 
-import os, sys, re
-import wx
+import os, re, wx
 
 # local imports
 
 from platforms import Win32, Mac
 
-"""
-The State class simplifies handling states of objects (e.g. jobs).
-"""
-
 class State:
-    not_started = 'not_started'
-    ready = 'ready'
-    running = 'running'
-    suspended = 'suspended'
-    finished = 'finished'
-    failed = 'failed'
-    error = 'error'
+    """
+    For various processes and threads.
+    """
+    ready     = 0
+    running   = 1
+    suspended = 2
+    done      = 3
+    error     = 4
 
-def error_dialog(message, caption='Error'):
-    dlg = wx.MessageDialog(None, message, caption, wx.OK|wx.ICON_ERROR)
-    dlg.ShowModal()
-    dlg.Destroy()    
-
-def info_dialog(message, caption='Information'):
-    dlg = wx.MessageDialog(None, message, caption, wx.OK|wx.ICON_INFORMATION)
-    dlg.ShowModal()
-    dlg.Destroy()    
-
-"""
-Find the top Window of a wx hierarchy.
-"""
 def to_top(w):
-    if isinstance(w, wx.Window):
-        p = w.GetParent()
-        if p:
-            return to_top(p)
-        else:
-            return w
+    while w.GetParent():
+        w = w.GetParent()
+    return w
 
-def size_that_fits(size_required, percent_of_screen = 0.85):
-    """
-    Try to give the requested size, but make sure it can fit on the screen.
-    (size is (width,height))
-    """
-    (frame_width,frame_height) = size_required
-    screen_width = wx.GetDisplaySize()[0] * percent_of_screen
-    screen_height = wx.GetDisplaySize()[1] * percent_of_screen
+def absolute_position(w):
+    (x,y) = w.GetPosition()
+    if not w.GetParent():
+        return (x,y)
+    else:
+        (a,b) = absolute_position(w.GetParent())
+        return (x+a, y+b)
 
-    if frame_width > screen_width:
-        frame_width = screen_width
-    if frame_height > screen_height:
-        frame_height = screen_height
-    return (int(frame_width), int(frame_height))
+def size_that_fits(recommended_size):
+    (r_width, r_height) = recommended_size
+    screen_width  = wx.SystemSettings.GetMetric(wx.SYS_SCREEN_X)
+    screen_height  = wx.SystemSettings.GetMetric(wx.SYS_SCREEN_Y)
+    return (min(r_width, screen_width), min(r_height, screen_height))
 
 def pos_for_center(size):
-    """
-    Return a position that will center the window on the screen.
-    """
-    (frame_width,frame_height) = size
-    screen_width = wx.GetDisplaySize()[0]
-    screen_height = wx.GetDisplaySize()[1]
-
+    (frame_width, frame_height) = size
+    screen_width  = wx.SystemSettings.GetMetric(wx.SYS_SCREEN_X)
+    screen_height  = wx.SystemSettings.GetMetric(wx.SYS_SCREEN_Y)
     x = screen_width//2 - frame_width//2
     y = screen_height//2 - frame_height//2
-    return (x,y)
+    return (max(x,0),max(y,0))
 
-def screen_center():
-    """
-    Return the center of the screen.
-    """
-    screen_width = wx.GetDisplaySize()[0]
-    screen_height = wx.GetDisplaySize()[1]
+def center_of_screen():
+    screen_width  = wx.SystemSettings.GetMetric(wx.SYS_SCREEN_X)
+    screen_height  = wx.SystemSettings.GetMetric(wx.SYS_SCREEN_Y)
     return (screen_width//2, screen_height//2)
 
-def max_width(str_list, wxfont):
-    """
-    Return the max width of a list of strings in the given font.
-    """
-    if str_list:
-        dc = wx.ScreenDC()
-        dc.SetFont(wxfont)
-        widths = [dc.GetTextExtent(s)[0] for s in str_list]
-        return max(widths)
+def error_dialog(message):
+    dlg = wx.MessageDialog(None, message, '', wx.OK | wx.ICON_ERROR)
+    dlg.ShowModal()
+    dlg.Destroy()
+
+def info_dialog(message):
+    dlg = wx.MessageDialog(None, message, '', wx.OK | wx.ICON_INFORMATION)
+    dlg.ShowModal()
+    dlg.Destroy()
+
+def open_dir_style(current_path):
+    # Mac and Win32 remember directory, even after quitting program;
+    # else (GTK), use our
+    style = wx.OPEN
+    if Mac() or Win32():
+        return ('', style)
     else:
-        return 0
+        # return (os.getcwd(), wx.OPEN | wx.CHANGE_DIR)
+        if current_path:
+            return (os.path.dirname(current_path), style)
+        else:
+            return (os.getcwd(), style)
 
-# Platform dependencies for wx.FileDialog
+def saveas_dir_style(current_path):
+    style = wx.SAVE | wx.OVERWRITE_PROMPT
+    if Win32():  # Win32 uses dir remembered from 'open'
+        return ('', style)
+    elif Mac():  # Mac doesn't use dir remembered from 'open'
+        if current_path:
+            return (os.path.dirname(current_path), style)
+        else:
+            return ('', wx.SAVE)
+    else:        # GTK doesn't remember
+        # return (os.getcwd(), style | wx.CHANGE_DIR)
+        if current_path:
+            return (os.path.dirname(current_path), style)
+        else:
+            return (os.getcwd(), style)
 
-def open_dir_style(current_dir):
-    """
-    Directory and style arguments for wx.FileDialog to open files.
-    """
-    if current_dir:
-        dir = os.path.dirname(current_dir)
-    elif Mac():
-        dir = os.path.expanduser('~')
-    else:
-        dir = os.path.abspath(os.path.curdir)
-    style = wx.FD_OPEN | wx.FD_FILE_MUST_EXIST
-    return (dir,style)
-
-def saveas_dir_style(current_dir):
-    """
-    Directory and style arguments for wx.FileDialog to save files.
-    """
-    if current_dir:
-        dir = os.path.dirname(current_dir)
-    elif Mac():
-        dir = os.path.expanduser('~')
-    else:
-        dir = os.path.abspath(os.path.curdir)
-    style = wx.FD_SAVE
-    return (dir,style)
-
-class Content_change:
-    """
-    An event handler can use this class to keep track of text highlighting.
-    See the on_text_change method in the Formula_tab class for an example.
-    """
-    def __init__(self, t):
-        """
-        Create a Content_change event handler with timer t of the parent.
-        (The parent must already have a timer instantiated.)
-        """
-        self.normal_color = 'BLACK'
-        self.good_color = 'BLUE'
-        self.bad_color = 'RED'
-        self.last_edit_pos = 0
-        self.prev_text = ''
-        self.timer = t
-        self.highlight_timer_id = None
-
-    def highlight(self, tc, start, end, type='BLUE'):
-        """
-        Temporarily hilight text from start to end (or all if not given).
-        Type can be one of the defined colors.
-        The caller must assure the range is legal.
-        """
-        # first make sure all text is the normal color
-        tc.SetStyle(0, tc.GetLastPosition(),
-                    wx.TextAttr(self.normal_color, 'WHITE'))
-
-        # now set the given range to type
-        color = None
-        if type == 'BLUE':
-            color = self.good_color
-        elif type == 'RED':
-            color = self.bad_color
-
-        if color:
-            tc.SetStyle(start, end, wx.TextAttr(color, 'WHITE'))
-            if self.highlight_timer_id == None:
-                self.highlight_timer_id = wx.NewId()
-                self.timer.Start(1500)  # 1.5 seconds
-
-    def clear_highlight(self, tc):
-        """
-        Change all text to the normal color.
-        """
-        tc.SetStyle(0, tc.GetLastPosition(),
-                    wx.TextAttr(self.normal_color, 'WHITE'))
-        if self.highlight_timer_id != None:
-            self.timer.Stop()
-            self.highlight_timer_id = None
-
-    def on_timer(self, tc, evt):
-        """
-        Handle a timer event.
-        """
-        if self.highlight_timer_id != None:
-            self.clear_highlight(tc)
-
-    def on_change(self, tc, evt):
-        """
-        Handle an EVT_TEXT event.
-        """
-        self.clear_highlight(tc)
-        self.last_edit_pos = tc.GetInsertionPoint()
-
-"""
-A Frame for displaying text (output), with optional Save button.
-"""
+def max_width(strings, window):
+    max_wid = 0
+    for s in strings:
+        width = window.GetTextExtent(s)[0]
+        max_wid = max(max_wid, width)
+    return max_wid
 
 class Text_frame(wx.Frame):
-    def __init__(self, parent, font, title, text='', saveas=True):
-        """
-        Create a Text_frame with given title and content.
-        """
-        size = size_that_fits((700,500))
-        wx.Frame.__init__(self, parent, -1, title=title, size=size)
-        panel = wx.Panel(self, -1)
+    def __init__(self, parent, font, title, text,
+                 extension=None, saveas=True,
+                 off_center=0, saved_flag=None,
+                 extra_operations=[]):
+        
+        size = size_that_fits((900,650))     # reduce if screen too small
+        (x,y) = pos_for_center(size)         # position to center frame
+        pos = (x+off_center, y+off_center)
 
-        self.text = wx.TextCtrl(panel, -1, style=wx.TE_MULTILINE|wx.TE_READONLY)
-        self.text.SetFont(font)
-        self.text.write(text)
+        wx.Frame.__init__(self, parent, title=title, size=size, pos=pos)
 
-        vbox = wx.BoxSizer(wx.VERTICAL)
-        vbox.Add(self.text, 1, wx.EXPAND|wx.ALL, 5)
+        self.extension = extension
+        self.saved_flag = saved_flag
+        self.text = text
+
         if saveas:
-            hbox = wx.BoxSizer(wx.HORIZONTAL)
+            saveas_btn = wx.Button(self, -1, 'Save as...')
+            self.Bind(wx.EVT_BUTTON, self.on_saveas, saveas_btn)
 
-            b_save = wx.Button(panel, wx.ID_SAVE, 'Save As...')
-            b_close = wx.Button(panel, wx.ID_CLOSE, 'Close')
-            hbox.Add(b_save, 0, wx.RIGHT|wx.BOTTOM, 5)
-            hbox.Add(b_close, 0, wx.RIGHT|wx.BOTTOM, 5)
-            self.Bind(wx.EVT_BUTTON, self.on_save, id=wx.ID_SAVE)
-            self.Bind(wx.EVT_BUTTON, self.on_close, id=wx.ID_CLOSE)
-            
-            vbox.Add(hbox, 0, wx.ALIGN_RIGHT|wx.RIGHT, 5)
-        panel.SetSizer(vbox)
-        panel.Layout()
+        extra_btns = []
+        for (label,func) in extra_operations:
+            btn = wx.Button(self, -1, label)
+            self.Bind(wx.EVT_BUTTON, func, btn)
+            extra_btns.append(btn)
 
-    def on_save(self, evt):
-        """
-        Save the text to a file selected by the user.
-        """
+        close_btn = wx.Button(self, -1, 'Close')
+        self.Bind(wx.EVT_BUTTON, self.on_close, close_btn)
+
+        self.txt = wx.TextCtrl(self,
+                               style=wx.TE_MULTILINE|wx.TE_READONLY|wx.HSCROLL|
+                               wx.TE_RICH2)  # TE_RICH2 allows > 32K in Win32
+        self.txt.SetFont(font)
+        
+        self.txt.AppendText(text)
+        self.txt.ShowPosition(0)
+ 
+        sub_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        if saveas:
+            sub_sizer.Add(saveas_btn, 0, wx.ALL, 3)
+        for btn in extra_btns:
+            sub_sizer.Add(btn, 0, wx.ALL, 3)
+        sub_sizer.Add((0,0), 1)  # strechable space
+        sub_sizer.Add(close_btn, 0, wx.ALL, 3)
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(sub_sizer, 0, wx.ALL|wx.GROW, 3)
+        sizer.Add(self.txt, 1, wx.ALL|wx.GROW, 3)
+        self.SetSizer(sizer)
+
+    def append(self, text):
+        self.txt.AppendText(text)
+        self.txt.ShowPosition(self.txt.GetLastPosition())
+
+    def on_saveas(self, evt):
+        (dir,style) = saveas_dir_style(to_top(self).current_path)
+
+        if to_top(self).current_path and self.extension:
+            dfile = os.path.basename(to_top(self).current_path)
+            dfile = re.sub(r'\.[^.]*$', '', dfile)  # get rid of any extension
+            dfile = '%s.%s' % (dfile,self.extension)    # append new extension
+        else:
+            dfile = ''
+
         dlg = wx.FileDialog(self, message='Save file as ...',
-                            defaultDir=os.path.abspath(os.path.curdir),
-                            style = wx.FD_SAVE)
+                            defaultDir=dir, defaultFile=dfile, style=style)
         if dlg.ShowModal() == wx.ID_OK:
-            path = dlg.GetPath()  # full path
+            path = dlg.GetPath()      # full path
             try:
-                dfile = os.path.basename(path)
-                dfile = re.sub(r'\.[^.]*$', '', dfile)  # get rid of any extension
-                self.SetTitle(dfile)
-
                 f = open(path, 'w')
-                f.write(self.text.GetValue())
-                f.close()
+                f.write(self.txt.GetValue())
+                # Do not update to_top(self).current_path
+                if self.saved_flag:
+                    self.saved_flag[0] = True
             except IOError as e:
                 error_dialog('Error opening file %s for writing.' % path)
-            
+
         dlg.Destroy()
 
     def on_close(self, evt):
+        self.Close()
+
+    def hilite_error(self):
+        start = self.txt.GetValue().find('%%START ERROR%%')
+        if start > 0:
+            end = self.txt.GetValue().find('%%END ERROR%%', start)
+            if end > 0:
+                self.txt.SetStyle(start+15, end,
+                                  wx.TextAttr('RED',
+                                              wx.Colour(200,200,255)))
+        else:
+            start = self.txt.GetValue().find('%%ERROR:')
+            if start > 0:
+                end = self.txt.GetValue().find('\n', start)
+                if end > 0:
+                    self.txt.SetStyle(start+8, end,
+                                      wx.TextAttr('RED',
+                                                  wx.Colour(200,200,255)))
+            
+
+# END class Text_frame(wx.Frame)
+
+class Mini_info(wx.MiniFrame):
+    def __init__(self, parent, title, items):
+        
+        # pos = center_of_screen()
+        pos = absolute_position(parent)
+
+        if Win32():
+            style = wx.STAY_ON_TOP|wx.DEFAULT_FRAME_STYLE
+        elif Mac():
+            style = wx.STAY_ON_TOP|wx.CAPTION|wx.CLOSE_BOX
+        else:
+            style = wx.STAY_ON_TOP   # GTK ignores style for MiniFrame
+
+        wx.MiniFrame.__init__(self, parent, title=title, pos=pos, style=style)
+
+        # Cannot get a close button on titlebar in GTK.
+        if Win32() or Mac():
+            close_btn = None
+        else:
+            close_btn = wx.Button(self, -1, 'Close', style=wx.BU_EXACTFIT)
+            self.Bind(wx.EVT_BUTTON, self.on_close, close_btn)
+        self.Bind(wx.EVT_CLOSE, self.on_close)
+
+        gsizer = wx.GridSizer(len(items), 2)
+
+        self.val_labels = []
+        for (name,val) in items:
+            name_lab = wx.StaticText(self, -1, name + ':')
+            val_lab  = wx.StaticText(self, -1, str(val), size=(75,-1),
+                                     style=wx.ALIGN_RIGHT|wx.ST_NO_AUTORESIZE)
+            self.val_labels.append(val_lab)
+            gsizer.Add(name_lab, 0, wx.ALIGN_LEFT, 3)
+            gsizer.Add(val_lab, 0, wx.ALIGN_RIGHT, 3)
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        if close_btn:
+            sizer.Add(close_btn, 0, wx.ALL|wx.ALIGN_RIGHT, 3)
+        sizer.Add(gsizer, 0, wx.ALL|wx.ALIGN_CENTER, 3)
+        self.SetSizer(sizer)
+        self.Fit()
+        self.Show()
+
+    def on_close(self, evt):
+        self.GetParent().info_reset()
         self.Destroy()
 
-class Invoke_event(wx.PyEvent):
-    """Simple event to carry arbitrary result data."""
-    def __init__(self, data):
-        """Init Result Event."""
-        wx.PyEvent.__init__(self)
-        self.SetEventType(wx.NewId())
-        self.data = data
+    def update(self, items):
+        i = 0
+        for (_,val) in items:
+            lab = self.val_labels[i]
+            lab.SetLabel(str(val))
+            i += 1
+        self.Fit()
+        
+# END class Mini_info(wx.MiniFrame)
 
-"""
-Busy_bar class.  This is a  busy meter, not a progress meter.
-It doesn't tell you now much of the job is done (because we
-don't know).  It just lets you know that the program is
-working on the job.
-"""
+class Invoke_event(wx.PyEvent):
+    """
+    This class is used so that a side thread can invoke
+    a function in the main GUI thread.
+    """
+    my_EVT_INVOKE = wx.NewEventType()
+
+    def __init__(self, func, args, kwargs):
+        wx.PyEvent.__init__(self)
+        self.SetEventType(Invoke_event.my_EVT_INVOKE)
+        self.__func = func
+        self.__args = args
+        self.__kwargs = kwargs
+
+    def invoke(self):
+        self.__func(*self.__args, **self.__kwargs)
+
+# END class Invoke_event(PyEvent)
 
 class Busy_bar(wx.Gauge):
-    def __init__(self, parent, range=50, delay=100):
-        """
-        Initialize a busy bar.
-          range: Number of intervals (arbitrary); doesn't represent percentage.
-          delay: Timer interval in milliseconds.
-        """
-        wx.Gauge.__init__(self, parent, -1, range=range, size=(250, 20))
-        
-        self.range = range
-        self.state = 0
+
+    def __init__(self, parent, width=200, height=16,
+                 pixels_to_move=2, fill=.9, delay=200):
+
+        wx.Gauge.__init__(self, parent, range=100, size=(width,height))
+
         self.delay = delay
-        self.timer = None
-        self.forward = True
-        self.value = 0
-        self.SetValue(0)
+        self.range = range
+        self.state = State.ready
+        self.position = 40
+        self.direction = 1
+
+    def update_bar(self, evt):
+        # This is run periodically, triggered by the timer in self.start().
+
+        self.position += self.direction
+        if self.position >= 60:
+            self.direction = -1
+        elif self.position <= 40:
+            self.direction = 1
+
+        self.SetValue(self.position)
 
     def start(self):
-        """
-        Start the timer, which moves the indicator back and forth.
-        """
         # start timer
         if self.timer == None:
             self.timer = wx.Timer(self, -1)
             # Replace deprecated EVT_TIMER with Bind
             self.Bind(wx.EVT_TIMER, self.update_bar, self.timer)
             self.timer.Start(self.delay)  # milliseconds
+        self.state = State.running
 
+    def pause(self):
+        self.timer.Stop()
+        self.state = State.suspended
+
+    def resume(self):
+        self.start()
+        
     def stop(self):
-        """
-        Stop the timer and reset the indicator to 0.
-        """
-        if self.timer != None:
-            self.timer.Stop()
-            self.timer = None
-            self.SetValue(0)
+        self.timer.Stop()
+        self.SetValue(0)
+        self.position = 40
+        self.direction = 1
+        self.state = State.ready
 
-    def update_bar(self, evt):
-        if self.forward:
-            self.value += 1
-            if self.value >= self.range:
-                self.value = self.range
-                self.forward = False
-        else:
-            self.value -= 1
-            if self.value <= 0:
-                self.value = 0
-                self.forward = True
-        self.SetValue(self.value)
-
-class Mini_info:
-    """
-    Mini-display (StaticText) for info or warning messages.
-    When give_info is called, the message is displayed.
-    A call to clear_info clears the message.
-    """
-    def __init__(self, parent, text=''):
-        self.st = wx.StaticText(parent, -1, text)
-
-    def give_info(self, text, info_color=wx.RED):
-        self.st.SetLabel(text)
-        self.st.SetForegroundColour(info_color)
-        p = self.st.GetParent()
-        w = p.GetParent()
-        w.Layout()
-
-    def clear_info(self):
-        self.st.SetLabel('')
-        p = self.st.GetParent()
-        w = p.GetParent()
-        w.Layout()
+# END class Busy_bar(Guage)
 

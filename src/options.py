@@ -26,8 +26,8 @@ import wx
 # local imports
 
 import utilities
-from wx_utilities import *
-
+from wx_utilities import error_dialog
+from platforms import GTK
 # Types of Option record:
 
 Flag        = 0  # Boolean value
@@ -104,9 +104,9 @@ def option_triples_to_string(triples):
 
 def print_sharing(opt):
     "For debugging."
-    print '  option: %d %s %s' % (opt[Id], opt[Name], str(opt[Value]))
+    print('  option: %d %s %s' % (opt[Id], opt[Name], str(opt[Value])))
     for o in opt[Share]:
-        print '        %d %s' % (o[Id], o[Name])
+        print('        %d %s' % (o[Id], o[Name]))
 
 def update_label(opt):
     "Given an option, set the color of its label."
@@ -191,7 +191,7 @@ class Options_panel(wx.Panel):
             heading = wx.StaticBitmap(self, -1, logo_bitmap)
         else:
             heading = wx.StaticText(self, -1, title) # title.replace(' ', '_'))
-            font = wx.SystemSettings_GetFont(wx.SYS_DEFAULT_GUI_FONT)
+            font = wx.SystemSettings.GetFont(wx.SYS_DEFAULT_GUI_FONT)
             font.SetPointSize(font.GetPointSize()+2)
             font.SetWeight(wx.FONTWEIGHT_BOLD)
             heading.SetFont(font)
@@ -228,6 +228,16 @@ class Options_panel(wx.Panel):
                     tip = opt[Tip]
                 elif opt[Type] == Parm:
                     (min, max) = opt[Range]
+                    # Ensure min <= max (GTK requirement)
+                    if min > max:
+                        min, max = max, min
+                    
+                    # Handle extremely large values that can cause GTK errors
+                    if min == -sys.maxsize:
+                        min = -1000000  # Use a large but safer negative value
+                    if max == sys.maxsize:
+                        max = 1000000   # Use a large but safer positive value
+                        
                     x = wx.SpinCtrl(self,id,min=min,max=max,size=(75,-1))
                     self.Bind(wx.EVT_SPINCTRL, self.on_change, x)
                     x.SetValue(opt[Default])
@@ -320,15 +330,15 @@ class M4_options:
     options = [
 
         [None, None, None, None, Group, 'Basic Options', 'left'],
-        [None, None, None, None, Parm, 'domain_size', None, 0, [0,sys.maxint], 'Look for structures of this size only.'],
-        [None, None, None, None, Parm, 'start_size', None, 2, [2,sys.maxint], 'Initial (smallest) domain size.'],
-        [None, None, None, None, Parm, 'end_size', None, -1, [-1,sys.maxint], 'Final (largest) domain size (-1 means infinity).'],
-        # [None, None, None, None, Parm, 'iterate_up_to', None, 10, [-1,sys.maxint], 'Final domain size.'],
-        [None, None, None, None, Parm, 'increment', None, 1, [1,sys.maxint], 'Increment for next domain size (when end_size > start_size).'],
+        [None, None, None, None, Parm, 'domain_size', None, 0, [0,sys.maxsize], 'Look for structures of this size only.'],
+        [None, None, None, None, Parm, 'start_size', None, 2, [2,sys.maxsize], 'Initial (smallest) domain size.'],
+        [None, None, None, None, Parm, 'end_size', None, -1, [-1,sys.maxsize], 'Final (largest) domain size (-1 means infinity).'],
+        # [None, None, None, None, Parm, 'iterate_up_to', None, 10, [-1,sys.maxsize], 'Final domain size.'],
+        [None, None, None, None, Parm, 'increment', None, 1, [1,sys.maxsize], 'Increment for next domain size (when end_size > start_size).'],
         [None, None, None, None, Stringparm, 'iterate', None, 'all', ['all', 'evens', 'odds', 'primes', 'nonprimes'], 'Domain sizes must satisfy this property.'],
-        [None, None, None, None, Parm, 'max_models', None, 1, [-1,sys.maxint], 'Stop search at this number of models (-1 means no limit).'],
-        [None, None, None, None, Parm, 'max_seconds', None, 60, [-1,sys.maxint], 'Overall time limit.'],
-        [None, None, None, None, Parm, 'max_seconds_per', None, -1, [-1,sys.maxint], 'Time limit for each domain size.'],
+        [None, None, None, None, Parm, 'max_models', None, 1, [-1,sys.maxsize], 'Stop search at this number of models (-1 means no limit).'],
+        [None, None, None, None, Parm, 'max_seconds', None, 60, [-1,sys.maxsize], 'Overall time limit.'],
+        [None, None, None, None, Parm, 'max_seconds_per', None, -1, [-1,sys.maxsize], 'Time limit for each domain size.'],
         [None, None, None, None, Flag, 'prolog_style_variables', None, 0, None, 'Variables start with upper case instead of starting with u,v,w,x,y,z.'],
 
 #        [None, None, None, None, Group, 'Output Options', 'left'],
@@ -342,7 +352,7 @@ class M4_options:
         # [None, None, None, None, Flag, 'iterate_primes', None, 0, None, 'Search structures of prime size only.'],
         # [None, None, None, None, Flag, 'iterate_nonprimes', None, 0, None, 'Search structures of nonprime size only.'],
         [None, None, None, None, Flag, 'skolems_last', None, 0, None, 'Decide Skolem symbols last.'],
-        [None, None, None, None, Parm, 'max_megs', None, 200, [-1,sys.maxint], 'Memory limit for Mace4 process (approximate).'],
+        [None, None, None, None, Parm, 'max_megs', None, 200, [-1,sys.maxsize], 'Memory limit for Mace4 process (approximate).'],
         [None, None, None, None, Flag, 'print_models', None, 1, None, 'Output models that are found.'],
 
         [None, None, None, None, Group, 'Experimental Options', 'right'],
@@ -436,13 +446,13 @@ class P9_options:
 
         ('Basic Options', 
         [
-        [None, None, None, None, Parm, 'max_weight', None, 100, [-sys.maxint,sys.maxint], 'Discard inferred clauses with weight greater than this.'],
-        [None, None, None, None, Parm, 'pick_given_ratio', None, -1, [-1,sys.maxint], 'Selection by (Weight : Age) ratio  (except for hints).'],
+        [None, None, None, None, Parm, 'max_weight', None, 100, [-sys.maxsize,sys.maxsize], 'Discard inferred clauses with weight greater than this.'],
+        [None, None, None, None, Parm, 'pick_given_ratio', None, -1, [-1,sys.maxsize], 'Selection by (Weight : Age) ratio  (except for hints).'],
         [None, None, None, None, Stringparm, 'order', None, 'lpo', ['lpo', 'rpo', 'kbo'], 'Overall term ordering: Lexicographic Path Ordering (LPO), Recursive Path Ordering (RPO), Knuth-Bendix Ordering (KBO).  If the search fails with LPO, try KBO.'],
         [None, None, None, None, Stringparm, 'eq_defs', None, 'unfold', ['unfold', 'fold', 'pass'], 'Adjustment of term ordering, based on equational definitions in the input.\nUnfold: eliminate defined operations at the start of the search;\nFold: introduce the defined operation whenever possible;\nPass: let equational definitions be oriented by the term ordering.'],
         [None, None, None, None, Flag, 'expand_relational_defs', None, 0, None, 'Use relational definitions in the input to immediately expand occurrences of the defined relations in the input.'],
         [None, None, None, None, Flag, 'restrict_denials', None, 0, None, 'This flag restricts the application of inference rules when negative clauses are involved, with the goal of producing more direct (forward) proofs.  WARNING: this flag can block proofs.'],
-        [None, None, None, None, Parm, 'max_seconds', None, 60, [-1,sys.maxint], 'Stop the search at this number of seconds (CPU, not wall clock).'],
+        [None, None, None, None, Parm, 'max_seconds', None, 60, [-1,sys.maxsize], 'Stop the search at this number of seconds (CPU, not wall clock).'],
         [None, None, None, None, Flag, 'prolog_style_variables', None, 0, None, 'Variables start with upper case instead of starting with u,v,w,x,y,z.'],
         ]),
 
@@ -469,26 +479,26 @@ class P9_options:
         [
 
         [None, None, None, None, Group, 'Search Limits', 'left'],
-        [None, None, None, None, Parm, 'max_given', None, -1, [-1,sys.maxint], 'Stop the search at this number of given clauses.'],
-        [None, None, None, None, Parm, 'max_kept', None, -1, [-1,sys.maxint], 'Stop the search at this number of kept clauses.'],
-        [None, None, None, None, Parm, 'max_proofs', None, 1, [-1,sys.maxint], 'Stop the search at this number of proofs.'],
-        [None, None, None, None, Parm, 'max_megs', None, 200, [-1,sys.maxint], 'Stop the search when the process has used about this amount of memory.'],
-        [None, None, None, None, Parm, 'max_seconds', None, 60, [-1,sys.maxint], 'Stop the search at this number of seconds (CPU, not wall clock).'],
-        [None, None, None, None, Parm, 'max_minutes', None, -1, [-1,sys.maxint], ''],
-        [None, None, None, None, Parm, 'max_hours', None, -1, [-1,sys.maxint], ''],
-        [None, None, None, None, Parm, 'max_days', None, -1, [-1,sys.maxint], ''],
+        [None, None, None, None, Parm, 'max_given', None, -1, [-1,sys.maxsize], 'Stop the search at this number of given clauses.'],
+        [None, None, None, None, Parm, 'max_kept', None, -1, [-1,sys.maxsize], 'Stop the search at this number of kept clauses.'],
+        [None, None, None, None, Parm, 'max_proofs', None, 1, [-1,sys.maxsize], 'Stop the search at this number of proofs.'],
+        [None, None, None, None, Parm, 'max_megs', None, 200, [-1,sys.maxsize], 'Stop the search when the process has used about this amount of memory.'],
+        [None, None, None, None, Parm, 'max_seconds', None, 60, [-1,sys.maxsize], 'Stop the search at this number of seconds (CPU, not wall clock).'],
+        [None, None, None, None, Parm, 'max_minutes', None, -1, [-1,sys.maxsize], ''],
+        [None, None, None, None, Parm, 'max_hours', None, -1, [-1,sys.maxsize], ''],
+        [None, None, None, None, Parm, 'max_days', None, -1, [-1,sys.maxsize], ''],
 
         [None, None, None, None, Group, 'Limits on Kept Clauses', 'right'],
-        [None, None, None, None, Parm, 'max_weight', None, 100, [-sys.maxint,sys.maxint], 'Discard inferred clauses with weight greater than this.'],
-        [None, None, None, None, Parm, 'max_depth', None, -1, [-1,sys.maxint], 'Discard inferred clauses with depth greater than this.'],
-        [None, None, None, None, Parm, 'max_literals', None, -1, [-1,sys.maxint], 'Discard inferred clauses with more literals than this.'],
-        [None, None, None, None, Parm, 'max_vars', None, -1, [-1,sys.maxint], 'Discard inferred clauses with more variables than this.'],
+        [None, None, None, None, Parm, 'max_weight', None, 100, [-sys.maxsize,sys.maxsize], 'Discard inferred clauses with weight greater than this.'],
+        [None, None, None, None, Parm, 'max_depth', None, -1, [-1,sys.maxsize], 'Discard inferred clauses with depth greater than this.'],
+        [None, None, None, None, Parm, 'max_literals', None, -1, [-1,sys.maxsize], 'Discard inferred clauses with more literals than this.'],
+        [None, None, None, None, Parm, 'max_vars', None, -1, [-1,sys.maxsize], 'Discard inferred clauses with more variables than this.'],
 
         [None, None, None, None, Group, 'Sos Control', 'right'],
-        [None, None, None, None, Parm, 'sos_limit', None, 20000, [-1,sys.maxint], 'Limit on the size of the SOS list (the list of clauses that have been kept, but not yet selected as given clauses).  As the SOS fills up, a heuristic is used to discards new clauses that are unlikely to be used due to this limit.'],
-#       [None, None, None, None, Parm, 'min_sos_limit', None, 0, [0,sys.maxint], 'Unused'],
-#       [None, None, None, None, Parm, 'lrs_interval', None, 50, [1,sys.maxint], 'Limited resource heuristic: '],
-#       [None, None, None, None, Parm, 'lrs_ticks', None, -1, [-1,sys.maxint], 'Limited resource heuristic: '],
+        [None, None, None, None, Parm, 'sos_limit', None, 20000, [-1,sys.maxsize], 'Limit on the size of the SOS list (the list of clauses that have been kept, but not yet selected as given clauses).  As the SOS fills up, a heuristic is used to discards new clauses that are unlikely to be used due to this limit.'],
+#       [None, None, None, None, Parm, 'min_sos_limit', None, 0, [0,sys.maxsize], 'Unused'],
+#       [None, None, None, None, Parm, 'lrs_interval', None, 50, [1,sys.maxsize], 'Limited resource heuristic: '],
+#       [None, None, None, None, Parm, 'lrs_ticks', None, -1, [-1,sys.maxsize], 'Limited resource heuristic: '],
         ]),
 
         ('Search Prep', 
@@ -498,7 +508,7 @@ class P9_options:
         [None, None, None, None, Flag, 'process_initial_sos', None, 1, None, 'Treat input clauses as if they were inferred; exceptions are the application of max_weight, max_level, max_vars, and max_literals.'],
         [None, None, None, None, Flag, 'sort_initial_sos', None, 0, None, 'Sort the initial assumptions.  The order is largely  arbitrary.'],
         [None, None, None, None, Flag, 'predicate_elim', None, 1, None, 'Try to eliminate predicate (relation) symbols before the search starts.'],
-        [None, None, None, None, Parm, 'fold_denial_max', None, 0, [-1,sys.maxint], ''],
+        [None, None, None, None, Parm, 'fold_denial_max', None, 0, [-1,sys.maxsize], ''],
         ]),
 
         ('Goals/Denials', 
@@ -511,15 +521,15 @@ class P9_options:
         [
 
         [None, None, None, None, Group, 'Selection Ratio', 'left'],
-        [None, None, None, None, Parm, 'hints_part', None, sys.maxint, [0,sys.maxint], 'Component for clauses that match hint.'],
-        [None, None, None, None, Parm, 'age_part', None, 1, [0,sys.maxint], 'Component for the oldest clauses.'],
-        [None, None, None, None, Parm, 'weight_part', None, 0, [0,sys.maxint], 'Component for the lightest clauses.'],
-        [None, None, None, None, Parm, 'false_part', None, 4, [0,sys.maxint], 'Component for the lightest false (w.r.t. an interpretation) clauses.'],
-        [None, None, None, None, Parm, 'true_part', None, 4, [0,sys.maxint], 'Component for the lightest true (w.r.t. an interpretation) clauses.'],
-        [None, None, None, None, Parm, 'random_part', None, 0, [0,sys.maxint], 'Component for random clauses.'],
+        [None, None, None, None, Parm, 'hints_part', None, sys.maxsize, [0,sys.maxsize], 'Component for clauses that match hint.'],
+        [None, None, None, None, Parm, 'age_part', None, 1, [0,sys.maxsize], 'Component for the oldest clauses.'],
+        [None, None, None, None, Parm, 'weight_part', None, 0, [0,sys.maxsize], 'Component for the lightest clauses.'],
+        [None, None, None, None, Parm, 'false_part', None, 4, [0,sys.maxsize], 'Component for the lightest false (w.r.t. an interpretation) clauses.'],
+        [None, None, None, None, Parm, 'true_part', None, 4, [0,sys.maxsize], 'Component for the lightest true (w.r.t. an interpretation) clauses.'],
+        [None, None, None, None, Parm, 'random_part', None, 0, [0,sys.maxsize], 'Component for random clauses.'],
 
         [None, None, None, None, Group, 'Meta Options', 'right'],
-        [None, None, None, None, Parm, 'pick_given_ratio', None, -1, [-1,sys.maxint], 'Selection by (Weight : Age) ratio  (except for hints).'],
+        [None, None, None, None, Parm, 'pick_given_ratio', None, -1, [-1,sys.maxsize], 'Selection by (Weight : Age) ratio  (except for hints).'],
         [None, None, None, None, Flag, 'breadth_first', None, 0, None, 'Selection by age only (except for hints).'],
         [None, None, None, None, Flag, 'lightest_first', None, 0, None, 'Selection by weight only (except for hints).'],
         [None, None, None, None, Flag, 'random_given', None, 0, None, 'Random selection (except for hints).'],
@@ -527,7 +537,7 @@ class P9_options:
 
         [None, None, None, None, Group, 'Semantic Guidance', 'left'],
         [None, None, None, None, Stringparm, 'multiple_interps', None, 'false_in_all', ['false_in_all', 'false_in_some'], 'Semantics with multiple interpretaions: determines how clauses are marked as "false".'],
-        [None, None, None, None, Parm, 'eval_limit', None, 1024, [-1,sys.maxint], 'Limit on the number of ground instances for evaluation in an explicit interpretation (for semantic guidance).'],
+        [None, None, None, None, Parm, 'eval_limit', None, 1024, [-1,sys.maxsize], 'Limit on the number of ground instances for evaluation in an explicit interpretation (for semantic guidance).'],
 
         [None, None, None, None, Group, 'Others', 'right'],
         [None, None, None, None, Flag, 'input_sos_first', None, 1, None, 'Before starting with selection ratio, select input clauses.'],
@@ -549,7 +559,7 @@ class P9_options:
         [None, None, None, None, Flag, 'paramodulation', None, 0, None, 'The inference rule for equality.'],
 
         [None, None, None, None, Group, 'Other Rules', 'left'],
-        [None, None, None, None, Parm, 'new_constants', None, 0, [-1,sys.maxint], 'If > 0, introduce new constants when equations such as x*x\'=y*y\' are derived.  The value of this parameter is a limit on the number of times the rule will be applied.'],
+        [None, None, None, None, Parm, 'new_constants', None, 0, [-1,sys.maxsize], 'If > 0, introduce new constants when equations such as x*x\'=y*y\' are derived.  The value of this parameter is a limit on the number of times the rule will be applied.'],
         [None, None, None, None, Flag, 'factor', None, 0, None, ''],
 
         [None, None, None, None, Group, 'General Restrictions', 'right'],
@@ -559,7 +569,7 @@ class P9_options:
         [None, None, None, None, Flag, 'ordered_res', None, 1, None, 'Resolved literals in one or more parents must be maximal in the clause.  (Does not apply to UR resolution.)'],
         [None, None, None, None, Flag, 'check_res_instances', None, 0, None, 'The maximality checks are done after the application of the unifier for the inference.'],
         [None, None, None, None, Flag, 'initial_nuclei', None, 0, None, 'For hyperresolution and UR resolution the nucleus for the inference must be an initial clause (this restriction can block all proofs).'],
-        [None, None, None, None, Parm, 'ur_nucleus_limit', None, -1, [-1,sys.maxint], 'The nucleus for each UR-resolution inference can have at most this many  literals.'],
+        [None, None, None, None, Parm, 'ur_nucleus_limit', None, -1, [-1,sys.maxsize], 'The nucleus for each UR-resolution inference can have at most this many  literals.'],
 
         [None, None, None, None, Group, 'Paramodulation Restrictions', 'right'],
         [None, None, None, None, Flag, 'ordered_para', None, 1, None, 'For paramodulation inferences, one or both parents must be maximal in the clause.'],
@@ -567,20 +577,20 @@ class P9_options:
         [None, None, None, None, Flag, 'para_from_vars', None, 1, None, 'Paramodulation is allowed from variables (not allowing can block all proofs)..'],
         [None, None, None, None, Flag, 'para_units_only', None, 0, None, 'Paramodulation is applied to unit clauses only (this restriction can block all proofs).'],
 #       [None, None, None, None, Flag, 'basic_paramodulation', None, 0, None, ''],
-        [None, None, None, None, Parm, 'para_lit_limit', None, -1, [-1,sys.maxint], 'Paramodulation is not applied to clauses with more than this number of literals (using this restriction can block all proofs).'],
+        [None, None, None, None, Parm, 'para_lit_limit', None, -1, [-1,sys.maxsize], 'Paramodulation is not applied to clauses with more than this number of literals (using this restriction can block all proofs).'],
         ]),
 
         ('Rewriting', 
         [
 
         [None, None, None, None, Group, 'Term Rewriting Limits', 'left'],
-        [None, None, None, None, Parm, 'demod_step_limit', None, 1000, [-1,sys.maxint], 'When rewriting derived clauses, apply at most this many rewrite steps.  Under most settings, rewriting is guaranteed to terminate, but it can be intractable.'],
-        [None, None, None, None, Parm, 'demod_size_limit', None, 1000, [-1,sys.maxint], 'When rewriting derived clauses, stop if the term being rewritten has more than this many symbols.'],
+        [None, None, None, None, Parm, 'demod_step_limit', None, 1000, [-1,sys.maxsize], 'When rewriting derived clauses, apply at most this many rewrite steps.  Under most settings, rewriting is guaranteed to terminate, but it can be intractable.'],
+        [None, None, None, None, Parm, 'demod_size_limit', None, 1000, [-1,sys.maxsize], 'When rewriting derived clauses, stop if the term being rewritten has more than this many symbols.'],
 
         [None, None, None, None, Group, 'Lex-Dependent Rewriting', 'right'],
         [None, None, None, None, Flag, 'lex_dep_demod', None, 1, None, 'Apply non-orientable equations as rewrite rules if the instance used for the rewrite is orientable.'],
         [None, None, None, None, Flag, 'lex_dep_demod_sane', None, 1, None, 'This is a restriction on lex_dep_demod.  A non-orientable equation can be used for rewriting only if the two sides have the same number of symbols.'],
-        [None, None, None, None, Parm, 'lex_dep_demod_lim', None, 11, [-1,sys.maxint], 'This is a restriction on lex_dep_demod.  A non-orientable equation can be used for rewriting only if it has fewer than this number of symbols.'],
+        [None, None, None, None, Parm, 'lex_dep_demod_lim', None, 11, [-1,sys.maxsize], 'This is a restriction on lex_dep_demod.  A non-orientable equation can be used for rewriting only if it has fewer than this number of symbols.'],
         [None, None, None, None, Flag, 'lex_order_vars', None, 0, None, 'Incorporate (uninstantiated) variables into the term ordering, treating them as constants.  For example, x*y < y*x.  This cuts down the search, but it can block all proofs.'],
 
         [None, None, None, None, Group, 'Others', 'left'],
@@ -593,28 +603,28 @@ class P9_options:
         [
 
         [None, None, None, None, Group, 'Symbol Weights', 'left'],
-        [None, None, None, None, Parm, 'variable_weight', None, 1, [-sys.maxint,sys.maxint], 'Weight of variables .'],
-        [None, None, None, None, Parm, 'constant_weight', None, 1, [-sys.maxint,sys.maxint], 'Default weight of constants.'],
-        [None, None, None, None, Parm, 'not_weight', None, 0, [-sys.maxint,sys.maxint], 'Weight of the negation symbol.'],
-        [None, None, None, None, Parm, 'or_weight', None, 0, [-sys.maxint,sys.maxint], 'Weight of the disjunction symbol.'],
-        [None, None, None, None, Parm, 'sk_constant_weight', None, 1, [-sys.maxint,sys.maxint], 'Weight of Skolem constants.  This option can be useful, because Skolem constants cannot appear in weighting rules.'],
-        [None, None, None, None, Parm, 'prop_atom_weight', None, 1, [-sys.maxint,sys.maxint], 'Weight of propositional atoms.'],
+        [None, None, None, None, Parm, 'variable_weight', None, 1, [-sys.maxsize,sys.maxsize], 'Weight of variables .'],
+        [None, None, None, None, Parm, 'constant_weight', None, 1, [-sys.maxsize,sys.maxsize], 'Default weight of constants.'],
+        [None, None, None, None, Parm, 'not_weight', None, 0, [-sys.maxsize,sys.maxsize], 'Weight of the negation symbol.'],
+        [None, None, None, None, Parm, 'or_weight', None, 0, [-sys.maxsize,sys.maxsize], 'Weight of the disjunction symbol.'],
+        [None, None, None, None, Parm, 'sk_constant_weight', None, 1, [-sys.maxsize,sys.maxsize], 'Weight of Skolem constants.  This option can be useful, because Skolem constants cannot appear in weighting rules.'],
+        [None, None, None, None, Parm, 'prop_atom_weight', None, 1, [-sys.maxsize,sys.maxsize], 'Weight of propositional atoms.'],
 
         [None, None, None, None, Group, 'Penalties', 'right'],
-        [None, None, None, None, Parm, 'skolem_penalty', None, 1, [0,sys.maxint], 'If a term contains a (non-constant) Skolem function, its weight is multiplied by this value.'],
-        [None, None, None, None, Parm, 'nest_penalty', None, 0, [0,sys.maxint], 'For each nest of two identical function symbols, e.g., f(f(x,y),z), this value is added tot he weight of the term.'],
-        [None, None, None, None, Parm, 'depth_penalty', None, 0, [-sys.maxint,sys.maxint], 'After the weight of clause C is calculated, its weight is increased by depth(C) * this_value.'],
-        [None, None, None, None, Parm, 'var_penalty', None, 0, [-sys.maxint,sys.maxint], 'After the weight of clause C is calculated, its weight is increased by number_of_vars(C) * this_value.'],
+        [None, None, None, None, Parm, 'skolem_penalty', None, 1, [0,sys.maxsize], 'If a term contains a (non-constant) Skolem function, its weight is multiplied by this value.'],
+        [None, None, None, None, Parm, 'nest_penalty', None, 0, [0,sys.maxsize], 'For each nest of two identical function symbols, e.g., f(f(x,y),z), this value is added tot he weight of the term.'],
+        [None, None, None, None, Parm, 'depth_penalty', None, 0, [-sys.maxsize,sys.maxsize], 'After the weight of clause C is calculated, its weight is increased by depth(C) * this_value.'],
+        [None, None, None, None, Parm, 'var_penalty', None, 0, [-sys.maxsize,sys.maxsize], 'After the weight of clause C is calculated, its weight is increased by number_of_vars(C) * this_value.'],
 
         [None, None, None, None, Group, 'Others', 'right'],
-        [None, None, None, None, Parm, 'default_weight', None, sys.maxint, [-sys.maxint,sys.maxint], ''],
+        [None, None, None, None, Parm, 'default_weight', None, sys.maxsize, [-sys.maxsize,sys.maxsize], ''],
         ]),
 
         ('Process Inferred', 
         [
         [None, None, None, None, Flag, 'safe_unit_conflict', None, 0, None, 'In some cases, a proof may be missed because a newly-derived clause is deleted by a limit such as max_weight.  This flag eliminates some of those cases.'],
         [None, None, None, None, Flag, 'back_subsume', None, 1, None, 'When a newly-derived clause C is kept, discard all old clauses that are subsumed by C.'],
-        [None, None, None, None, Parm, 'backsub_check', None, 500, [-1,sys.maxint], 'At this number of given clauses, disable back subsumption if less than 5% of kept clauses have been back subsumed.'],
+        [None, None, None, None, Parm, 'backsub_check', None, 500, [-1,sys.maxsize], 'At this number of given clauses, disable back subsumption if less than 5% of kept clauses have been back subsumed.'],
         ]),
 
         ('Input/Output', 
@@ -631,8 +641,8 @@ class P9_options:
 #       [None, None, None, None, Flag, 'default_output', None, 1, None, ''],
         [None, None, None, None, Flag, 'print_clause_properties', None, 0, None, 'When a clause is printed, show some if its syntactic properties (mostly for debugging).'],
         [None, None, None, None, Stringparm, 'stats', None, 'lots', ['none', 'some', 'lots', 'all'], 'How many statistics should be printed at the end of the search and in "reports".'],
-        [None, None, None, None, Parm, 'report', None, -1, [-1,sys.maxint], 'Output a statistics report every n seconds.'],
-#       [None, None, None, None, Parm, 'report_stderr', None, -1, [-1,sys.maxint], ''],
+        [None, None, None, None, Parm, 'report', None, -1, [-1,sys.maxsize], 'Output a statistics report every n seconds.'],
+#       [None, None, None, None, Parm, 'report_stderr', None, -1, [-1,sys.maxsize], ''],
         [None, None, None, None, Flag, 'prolog_style_variables', None, 0, None, 'Variables start with upper case instead of starting with u,v,w,x,y,z.'],
         ]),
 
@@ -646,7 +656,7 @@ class P9_options:
 
         ('Other Options', 
         [
-        [None, None, None, None, Parm, 'random_seed', None, 0, [-1,sys.maxint], 'Seed for random number generation.'],
+        [None, None, None, None, Parm, 'random_seed', None, 0, [-1,sys.maxsize], 'Seed for random number generation.'],
         ]),
         ]
 
@@ -683,7 +693,7 @@ class P9_options:
         (('breadth_first', True), ('false_part', 0)),
         (('breadth_first', True), ('true_part', 0)),
         (('breadth_first', True), ('random_part', 0)),
-#        (('default_parts', True), ('hints_part', sys.maxint)),
+#        (('default_parts', True), ('hints_part', sys.maxsize)),
 #        (('default_parts', True), ('age_part', 1)),
 #        (('default_parts', True), ('weight_part', 0)),
 #        (('default_parts', True), ('false_part', 4)),
@@ -709,7 +719,7 @@ class P9_options:
         (('auto_setup', False), ('eq_defs', 'pass')),
         (('auto_limits', True), ('max_weight', 100)),
         (('auto_limits', True), ('sos_limit', 20000)),
-        (('auto_limits', False), ('max_weight', sys.maxint)),
+        (('auto_limits', False), ('max_weight', sys.maxsize)),
         (('auto_limits', False), ('sos_limit', -1)),
         (('auto', True), ('auto_inference', True)),
         (('auto', True), ('auto_setup', True)),
@@ -743,7 +753,7 @@ class P9_options:
         (('raw', True), ('ordered_res', False)),
         (('raw', True), ('ordered_para', False)),
         (('raw', True), ('literal_selection', 'none')),
-        (('raw', True), ('backsub_check', sys.maxint)),
+        (('raw', True), ('backsub_check', sys.maxsize)),
         (('raw', True), ('lightest_first', True)),
         (('raw', True), ('cac_redundancy', False)),
 
@@ -858,10 +868,10 @@ def set_options(opt_str, opt_class, handle_dep = True):
 
     not_handled = ''
 
-    pat_flag = '(set|clear)\s*\(\s*([a-z0-9_]+)\s*\)'  # without period
+    pat_flag = r'(set|clear)\s*\(\s*([a-z0-9_]+)\s*\)'  # without period
     r_flag = re.compile(pat_flag)
 
-    pat_parm = 'assign\s*\(\s*([a-z0-9_]+)\s*,\s*([a-z0-9_-]+)\s*\)'  # without period
+    pat_parm = r'assign\s*\(\s*([a-z0-9_]+)\s*,\s*([a-z0-9_-]+)\s*\)'  # without period
     r_parm = re.compile(pat_parm)
 
     opts = opt_str.split('.')[:-1]  # no option after last period

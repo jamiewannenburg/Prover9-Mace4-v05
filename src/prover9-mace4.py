@@ -25,7 +25,6 @@ import os, sys
 import re
 import wx
 import wx.adv
-import time
 
 # local imports
 
@@ -622,7 +621,7 @@ class Splash_screen(wx.adv.SplashScreen):
     def __init__(self, path):
 
             bmp = wx.Image(path, wx.BITMAP_TYPE_GIF).ConvertToBitmap()
-            wx.adv.SplashScreen.__init__(
+            wx.SplashScreen.__init__(
                 self, bmp, wx.SPLASH_CENTRE_ON_SCREEN | wx.SPLASH_NO_TIMEOUT,
                 5000, None, -1)
 
@@ -642,14 +641,14 @@ class My_app(wx.App):
             if not os.access(path, os.R_OK):
                 error_dialog('splash image %s not found' % path)
         else:
-            splash = Splash_screen(path)
-            splash.Show(True)
-            time.sleep(1)
-            splash.Destroy()
+                splash = Splash_screen(path)
+                splash.Show(True)
+                time.sleep(1)
+                splash.Destroy()
 
         frame.Show(True)
     
-        # info_dialog(path_info())
+	# info_dialog(path_info())
     
         return True
 

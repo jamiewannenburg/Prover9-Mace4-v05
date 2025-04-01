@@ -43,7 +43,6 @@ from options import (
     M4_options, P9_options
 )
 from control import Prover9, Mace4, syntax_check
-
 # When saving an input file, a few comments are added; when
 # opening a saved input file, those comments are removed.
 
@@ -119,7 +118,7 @@ class Input_panel(wx.Panel):
             error_dialog('start_auto_highlight: timer alreay exists')
         else:
             self.timer = wx.Timer(self, -1)
-            wx.EVT_TIMER(self, self.timer.GetId(), self.check_highlight)
+            self.Bind(wx.EVT_TIMER, self.check_highlight, self.timer)
             self.timer.Start(2000)  # check every 2 seconds
             self.hilite_btn.Show(False)
         
@@ -140,6 +139,9 @@ class Input_panel(wx.Panel):
             self.Show(True)
 
     def well_formed_check(self, evt):
+        # Import syntax_check here to avoid circular imports
+        from control import syntax_check
+        
         if self.title == 'Assumptions':
             head = '\nformulas(assumptions).\n'
             tail = '\nend_of_list.\n'
@@ -497,7 +499,7 @@ class Setup_tabs(wx.Notebook):
 
         input += '\nformulas(assumptions).\n\n%s\nend_of_list.\n\n' % assumps
         input += '\nformulas(goals).\n\n%s\nend_of_list.\n\n' % goals
-        input = re.sub('\n\s*\n', '\n\n', input)  # collapse blank lines
+        input = re.sub(r'\n\s*\n', '\n\n', input)  # collapse blank lines
         return input
 
     def store_input(self, input):
@@ -515,7 +517,7 @@ class Setup_tabs(wx.Notebook):
         # and tell set_options() to ignore dependencies while putting the
         # options into the GUI.
 
-        r = re.compile('set\s*\(\s*ignore_option_dependencies\s*\)\s*\.')
+        r = re.compile(r'set\s*\(\s*ignore_option_dependencies\s*\)\s*\.')
         if r.match(opt):
             opt = r.sub('', opt)
             handle_dep = False
