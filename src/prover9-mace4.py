@@ -31,11 +31,15 @@ import time
 
 import partition_input
 import utilities
-from files import *
-from platforms import *
-from wx_utilities import *
-from my_setup import *
-from control import *
+from files import sample_dir, image_dir
+from platforms import Win32, Mac
+from wx_utilities import (
+    State, Text_frame, error_dialog, info_dialog, 
+    open_dir_style, saveas_dir_style, size_that_fits, 
+    pos_for_center, to_top
+)
+from my_setup import Setup_tabs
+from control import Control_panel
 
 Program_name = 'Prover9-Mace4'
 Program_version = '0.5'
@@ -441,7 +445,7 @@ class Main_frame(wx.Frame):
                 menu.AppendSeparator()
             for x in entries:
                 path = os.path.join(dir_path, x)
-                if os.path.isfile(path) and re.search('\.in$', path):
+                if os.path.isfile(path) and re.search(r'\.in$', path):
                     id = wx.NewId()
                     self.probs[id] = path
                     menu.Append(id, x)

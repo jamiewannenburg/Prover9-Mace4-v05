@@ -22,16 +22,27 @@
 import os, sys
 import re
 import wx
+import copy
 
 # local imports
 
 import partition_input
 import utilities
-from files import *
-from control import *
-from platforms import *
-from wx_utilities import *
-from options import *
+from files import bin, bin_dir, image_dir, sample_dir
+from platforms import Win32, Mac
+from wx_utilities import to_top, error_dialog, info_dialog, Text_frame, max_width
+from options import (
+    # Functions
+    option_triples_to_string, link_options_by_names, update_label, update_shared,
+    set_options, set_options_either, 
+    # Option indexes
+    Id, Label_id, Share, Depend, Type, Name, Value, Default, Range, Tip,
+    # Option types
+    Flag, Parm, Stringparm, Group,
+    # M4_options and P9_options classes
+    M4_options, P9_options
+)
+from control import Prover9, Mace4, syntax_check
 
 # When saving an input file, a few comments are added; when
 # opening a saved input file, those comments are removed.

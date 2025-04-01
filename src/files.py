@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 #     Copyright (C) 2007 William McCune
 #
 #     This file is part of the LADR Deduction Library.
@@ -17,13 +19,61 @@
 #     Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
-# system imports
+import os, sys
+import importlib.util
+import importlib.machinery
 
-import os, sys, imp
+# Get current directory and look for subdirectories.
 
-# local imports
+from platforms import Win32, Mac, Mac_ppc
 
-from platforms import *
+"""
+These routines handle the location of directories for the various platforms.
+In particular, the location of the executables, samples, and images.
+"""
+
+def app_dir():
+    """Directory where the application was started from."""
+    if sys.platform == 'darwin':
+        # (mac) start from the application's "MacOS" dir
+        mac_path = os.path.abspath(sys.argv[0])
+        #print 'mac_path = "%s"' % mac_path
+        path = os.path.dirname(mac_path)
+        return path
+    else:
+        # (non-mac) start from current working directory
+        return os.path.abspath(os.getcwd())
+
+def bin_dir():
+    """Directory containing executables (e.g., prover9)."""
+    app = app_dir()
+    # Different handling if application is "frozen" by py2exe.
+    if (Win32() and (hasattr(sys, 'frozen') or importlib.machinery.FrozenImporter.find_spec('__main__') is not None)):
+        return app
+    elif Mac():
+        if Mac_ppc():
+            return os.path.abspath(os.path.join(app, '../Resources/bin-mac-ppc'))
+        else:
+            return os.path.abspath(os.path.join(app, '../Resources/bin-mac-intel'))
+    else:
+        # Use bin directory in app_dir (current) if it exists.
+        path = os.path.join(app, 'bin')
+        if binary_ok(bin('prover9'), path):
+            return path
+        # Use bin-win32 directory in app_dir (current) if it exists.
+        path = os.path.join(app, 'bin-win32')
+        if binary_ok(bin('prover9'), path):
+            return path
+        # If we get this far on non-Windows, just try the 'bin' directory.
+        if Win32():
+            # Windows
+            #return os.path.abspath(os.path.join(app, '../bin-win32'))
+            return os.path.abspath(os.path.join(app, 'bin-win32'))
+        else:
+            # Linux or other Unix
+            if not binary_ok(bin('prover9'), os.path.join(app, 'bin')):
+                print("Warning: bin directory in app_dir has no executable.")
+            return os.path.abspath(os.path.join(app, 'bin'))
 
 def path_info():
     info = ('os.getcwd(): %s\n'
@@ -61,9 +111,6 @@ def bin():
             return 'bin-mac-intel'
     else:
         return 'bin'
-
-def bin_dir():
-    return os.path.join(program_dir(), bin())
 
 def image_dir():
     return os.path.join(program_dir(), 'Images')

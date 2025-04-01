@@ -20,7 +20,8 @@
 # system imports
 
 import os, wx, re, copy
-import time, thread, tempfile, subprocess, signal
+import time, _thread, tempfile, subprocess, signal
+import sys
 
 # local imports
 
@@ -440,7 +441,7 @@ class Run_program:
         self.saved_output   = [False]
         self.saved_solution = [False]
 
-        thread.start_new_thread(self.run, ())
+        _thread.start_new_thread(self.run, ())
 
     def run(self):
         #
@@ -1011,7 +1012,7 @@ class Isofilter_frame(wx.Frame):
             self.command = command
             self.start_btn.Disable()
             self.bar.start()
-            thread.start_new_thread(self.run, ())
+            _thread.start_new_thread(self.run, ())
 
     def run(self):
         #
