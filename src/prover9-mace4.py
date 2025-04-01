@@ -24,6 +24,8 @@
 import os, sys
 import re
 import wx
+import wx.adv
+import time
 
 # local imports
 
@@ -452,7 +454,7 @@ class Main_frame(wx.Frame):
             f = open(path)
             input = f.read()
             self.setup.store_new_input(input, None)
-        except IOError, e:
+        except IOError as e:
             error_dialog('Error opening file %s for reading.' % path)
 
         self.SetTitle('Prover9/Mace4')
@@ -481,7 +483,7 @@ class Main_frame(wx.Frame):
                 self.current_path = path
                 self.fmenu.Enable(wx.ID_SAVE, True)
                 self.SetTitle(os.path.basename(path) + ' - Prover9/Mace4')
-            except IOError, e:
+            except IOError as e:
                 error_dialog('Error opening file %s for reading.' % path)
         dlg.Destroy()
 
@@ -498,7 +500,7 @@ class Main_frame(wx.Frame):
                 # self.current_path = path
                 # self.fmenu.Enable(wx.ID_SAVE, True)
                 # self.SetTitle(os.path.basename(path) + ' - Prover9/Mace4')
-            except IOError, e:
+            except IOError as e:
                 error_dialog('Error opening file %s for reading.' % path)
         dlg.Destroy()
 
@@ -509,7 +511,7 @@ class Main_frame(wx.Frame):
             f.write('%% Saved by %s.\n\n' % Banner)
             f.write(input)
             return True
-        except IOError, e:
+        except IOError as e:
             error_dialog('Error opening file %s for writing.' % path)
             return False
 
@@ -612,11 +614,11 @@ class Main_frame(wx.Frame):
 
 # END class Main_frame(Frame)
 
-class Splash_screen(wx.SplashScreen):
+class Splash_screen(wx.adv.SplashScreen):
     def __init__(self, path):
 
             bmp = wx.Image(path, wx.BITMAP_TYPE_GIF).ConvertToBitmap()
-            wx.SplashScreen.__init__(
+            wx.adv.SplashScreen.__init__(
                 self, bmp, wx.SPLASH_CENTRE_ON_SCREEN | wx.SPLASH_NO_TIMEOUT,
                 5000, None, -1)
 
@@ -635,15 +637,15 @@ class My_app(wx.App):
             path = os.path.join(image_dir(),'prover9-splash.gif')
             if not os.access(path, os.R_OK):
                 error_dialog('splash image %s not found' % path)
-	    else:
-                splash = Splash_screen(path)
-                splash.Show(True)
-                time.sleep(1)
-                splash.Destroy()
+        else:
+            splash = Splash_screen(path)
+            splash.Show(True)
+            time.sleep(1)
+            splash.Destroy()
 
         frame.Show(True)
     
-	# info_dialog(path_info())
+        # info_dialog(path_info())
     
         return True
 
