@@ -342,7 +342,7 @@ class Main_frame(wx.Frame):
         # File menu
         self.fmenu = wx.Menu()
         submenu = self.sample_menu(sample_dir())
-        self.fmenu.AppendMenu(-1, 'Sample Inputs', submenu)
+        self.fmenu.Append(-1, 'Sample Inputs', submenu)
         self.fmenu.AppendSeparator()
         id = wx.NewId()
         self.fmenu.Append(id, 'Clear Entire Setup Panel')
@@ -438,7 +438,7 @@ class Main_frame(wx.Frame):
                 path = os.path.join(dir_path, x)
                 if os.path.isdir(path):
                     submenu = self.sample_menu(path)
-                    menu.AppendMenu(-1, x, submenu)
+                    menu.Append(-1, x, submenu)
                     have_dir = True
             if have_file and have_dir:
                 menu.AppendSeparator()

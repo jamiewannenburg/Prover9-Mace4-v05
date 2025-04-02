@@ -80,7 +80,7 @@ def info_dialog(message):
 def open_dir_style(current_path):
     # Mac and Win32 remember directory, even after quitting program;
     # else (GTK), use our
-    style = wx.OPEN
+    style = wx.FD_OPEN
     if Mac() or Win32():
         return ('', style)
     else:
@@ -91,14 +91,14 @@ def open_dir_style(current_path):
             return (os.getcwd(), style)
 
 def saveas_dir_style(current_path):
-    style = wx.SAVE | wx.OVERWRITE_PROMPT
+    style = wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
     if Win32():  # Win32 uses dir remembered from 'open'
         return ('', style)
     elif Mac():  # Mac doesn't use dir remembered from 'open'
         if current_path:
             return (os.path.dirname(current_path), style)
         else:
-            return ('', wx.SAVE)
+            return ('', wx.FD_SAVE)
     else:        # GTK doesn't remember
         # return (os.getcwd(), style | wx.CHANGE_DIR)
         if current_path:
@@ -302,6 +302,7 @@ class Busy_bar(wx.Gauge):
         self.state = State.ready
         self.position = 40
         self.direction = 1
+        self.timer = None
 
     def update_bar(self, evt):
         # This is run periodically, triggered by the timer in self.start().
