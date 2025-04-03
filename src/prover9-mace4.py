@@ -35,7 +35,7 @@ if 'XDG_SESSION_TYPE' in os.environ and os.environ['XDG_SESSION_TYPE'] == 'wayla
     os.environ['QT_QPA_PLATFORM'] = 'xcb'
     os.environ['WLR_NO_HARDWARE_CURSORS'] = '1'
 
-    os.environ['GTK_OVERLAY_SCROLLING'] = '0'
+    # os.environ['GTK_OVERLAY_SCROLLING'] = '0'
     # os.environ['G_DEBUG'] = 'fatal-warnings'
     # os.environ['G_DEBUG'] = 'fatal-criticals'
 
@@ -674,6 +674,7 @@ class My_app(wx.App):
 os.chdir(os.path.expanduser('~'))  # set current directory to user's home
 
 app = My_app(redirect=False)
-
+import wx.lib.inspection
+wx.lib.inspection.InspectionTool().Show()
 app.MainLoop()
 

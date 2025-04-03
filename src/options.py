@@ -23,9 +23,11 @@ import os, sys, types
 import re
 import wx
 import copy
+from minispinctrl import MiniSpinCtrl
 
 # local imports
 
+sys.maxsize = 2147483647
 import utilities
 from wx_utilities import error_dialog
 from platforms import GTK
@@ -105,20 +107,20 @@ def option_triples_to_string(triples):
     for (type,name,value) in triples:
         if type == Flag:
             if value:
-                s += '  set(%s).\n' % name
+                s += f'  set({name}).\n'
             else:
-                s += '  clear(%s).\n' % name
+                s += f'  clear({name}).\n'
         elif type == Parm:
-            s += '  assign(%s, %d).\n' % (name,value)
+            s += f'  assign({name}, {value}).\n'
         elif type == Stringparm:
-            s += '  assign(%s, %s).\n' % (name,value)
+            s += f'  assign({name}, {value}).\n'
     return s
 
 def print_sharing(opt):
     "For debugging."
-    print('  option: %d %s %s' % (opt[Id], opt[Name], str(opt[Value])))
+    print(f'  option: {opt[Id]} {opt[Name]} {str(opt[Value])}')
     for o in opt[Share]:
-        print('        %d %s' % (o[Id], o[Name]))
+        print(f'        {o[Id]} {o[Name]}')
 
 def update_label(opt):
     "Given an option, set the color of its label."
@@ -239,31 +241,31 @@ class Options_panel(wx.Panel):
                     x.SetValue(opt[Default])
                     tip = opt[Tip]
                 elif opt[Type] == Parm:
-                    (min, max) = opt[Range]
+                    (minv, maxv) = opt[Range]
                     # Ensure min <= max (GTK requirement)
-                    if min > max:
-                        min, max = max, min
+                    if minv > maxv:
+                        minv, maxv = maxv, minv
                     # Handle extremely large values that can cause GTK errors
-                    if min <= -9999: #-sys.maxsize:
-                        min = -9999  # Use a large but safer negative value
-                    if max >= 9999:#sys.maxsize:
-                        max = 9999   # Use a large but safer positive value
-                        
-                    x = wx.SpinCtrl(self,id,min=min,max=max,size=(75,20)) #
+                    if minv <= -9999: #-sys.maxsize:
+                        minv = -9999  # Use a large but safer negative value
+                    if maxv >= 9999:#sys.maxsize:
+                        maxv = 9999   # Use a large but safer positive value
+                    
+                    x = MiniSpinCtrl(self,id,min=minv,max=maxv,size=(75,-1)) #,size=(75,-1)
                     self.Bind(wx.EVT_SPINCTRL, self.on_change, x)
                     x.SetValue(opt[Default])
-                    tip = ('%s Range is [%d ... %d].' % (opt[Tip], min, max))
+                    tip = (f'{opt[Tip]} Range is [{minv} ... {maxv}].')
                 else: # stringparm
                     x = wx.Choice(self, id, choices=opt[Range])
                     self.Bind(wx.EVT_CHOICE, self.on_change, x)
                     x.SetStringSelection(opt[Default])
                     tip = opt[Tip]
                     
-                if not GTK():
-                    # Tooltips on labels don't work in GTK.
-                    # Large tooltips on widgets obscure choices in Mac.
-                    label.SetToolTip(tip)
-                    x.SetToolTip(tip)
+                # if not GTK():
+                #     # Tooltips on labels don't work in GTK.
+                #     # Large tooltips on widgets obscure choices in Mac.
+                #     label.SetToolTip(tip)
+                #     x.SetToolTip(tip)
 
                 g_sizer.Add(label, (row,0), (1,1),
                             wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL)
@@ -398,9 +400,9 @@ class M4_options:
             o1 = self.name_to_opt(n1)
             o2 = self.name_to_opt(n2)
             if not o1:
-                error_dialog('Mace4 option %s not found' % n1)
+                error_dialog(f'Mace4 option {n1} not found')
             elif not o2:
-                error_dialog('Mace4 option %s not found' % n2)
+                error_dialog('Mace4 option {n2} not found')
             else:
                 o1[Depend].append((v1, o2, v2))
                 update_label(o1)
@@ -824,9 +826,9 @@ class P9_options:
             o1 = self.name_to_opt(n1)
             o2 = self.name_to_opt(n2)
             if not o1:
-                error_dialog('Prover9 option %s not found' % n1)
+                error_dialog(f'Prover9 option {n1} not found')
             elif not o2:
-                error_dialog('Prover9 option %s not found' % n2)
+                error_dialog(f'Prover9 option {n2} not found')
             else:
                 for o in o1[Share]:
                     o[Depend].append((v1, o2, v2))

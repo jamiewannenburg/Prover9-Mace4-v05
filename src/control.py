@@ -35,6 +35,7 @@ from wx_utilities import (
     State, to_top, error_dialog, info_dialog, Text_frame, pos_for_center,
     max_width, Invoke_event, Busy_bar, Mini_info
 )
+from minispinctrl import MiniSpinCtrl
 from options import (
     # Functions
     update_label, update_shared,
@@ -582,14 +583,15 @@ class Program_panel(wx.Panel):
             opt[Share] = [opt]
             (min, max) = opt[Range]
             options.share_external_option(opt)
-            self.time_ctrl = wx.SpinCtrl(self, id, min=min, max=max,
-                                        size=(75,-1))
-                                        
+            self.time_ctrl = MiniSpinCtrl(self, id, min=min, max=max,
+                                        # size=(75,-1))
+                                        )
             self.time_ctrl.SetValue(opt[Default])
         else:
             error_dialog('error sharing max_second option (%s)' % program.name)
-            self.time_ctrl = wx.SpinCtrl(self, id, min=-1, max=sys.maxsize,
-                                        size=(75,-1))
+            self.time_ctrl = MiniSpinCtrl(self, id, min=-1, max=sys.maxsize,
+                                        # size=(75,-1))
+                                        )
             self.time_ctrl.SetValue(60)
 
         self.time_ctrl_opt = opt
