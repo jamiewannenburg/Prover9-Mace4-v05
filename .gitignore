@@ -5,9 +5,4 @@ src/__pycache__
 *.pyw
 *.pyz
 src/venv/
-src/bin/interpformat
-src/bin/isofilter
-src/bin/isofilter2
-src/bin/mace4
-src/bin/prooftrans
-src/bin/prover9
+src/bin/

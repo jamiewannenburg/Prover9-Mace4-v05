@@ -1,8 +1,17 @@
+
+**NEW:** This fork is being updated to work with Python 3. This is still a work in progress.
+
+I am testing it on Ubuntu 24.04.
+
+To download binaries see https://github.com/jamiewannenburg/ladr/releases
+
+This is being done in collaboration with cursor IDE.
+
+---
+
 # Prover9-Mace4 v05
 
 The Prover9-Mace4 GUI uses version LADR-Dec-2007 of Prover9 and Mace4. If you need a more recent verion of Prover9 or Mace4, you'll have to use a [command-line version](https://github.com/laitep/ladr).
-
-**NEW:** This fork is being updated to work with Python 3. This is still a work in progress.
 
 ---
 
