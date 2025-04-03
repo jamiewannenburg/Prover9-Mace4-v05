@@ -40,7 +40,7 @@ from options import (
     # Option types
     Flag, Parm, Stringparm, Group,
     # M4_options and P9_options classes
-    M4_options, P9_options
+    M4_options, P9_options, MyWindowIDRef
 )
 from control import Prover9, Mace4, syntax_check
 # When saving an input file, a few comments are added; when
@@ -340,8 +340,8 @@ class Language_panel(wx.Panel):
 
         # Prolog-Style Variables (Shared with other options widgets)
         
-        id = wx.NewId()
-        label_id = wx.NewId()
+        id = MyWindowIDRef(wx.NewIdRef())
+        label_id = MyWindowIDRef(wx.NewIdRef())
         opt = copy.deepcopy(options.name_to_opt('prolog_style_variables'))
         if opt:
             opt[Id] = id

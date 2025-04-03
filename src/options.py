@@ -22,12 +22,15 @@
 import os, sys, types
 import re
 import wx
+import copy
 
 # local imports
 
 import utilities
 from wx_utilities import error_dialog
 from platforms import GTK
+
+
 # Types of Option record:
 
 Flag        = 0  # Boolean value
@@ -50,6 +53,11 @@ Tip      = 9
 
 Column   = 6  # only for Group
 
+# An options class that can be accessed like a list, but implements __deepcopy__ on the first two elements.
+class MyWindowIDRef(wx.WindowIDRef):
+    def __deepcopy__(self, memo):
+        return MyWindowIDRef(self.GetValue())
+
 # Option records:
 #
 # [id, label_id, share, depend, type, name, value, default, range, tooltip]
@@ -66,6 +74,10 @@ def name_to_option(name, options):
     "Given an option name, return the record."
     for opt in options:
         if opt[Type] in [Flag, Parm, Stringparm] and opt[Name] == name:
+            # if isinstance(opt[Id], wx.WindowIDRef):
+            #     opt[Id] = MyWindowIDRef(opt[Id].GetValue())
+            # if isinstance(opt[Label_id], wx.WindowIDRef):
+            #     opt[Label_id] = MyWindowIDRef(opt[Label_id].GetValue())
             return opt
     return None
 
@@ -211,8 +223,8 @@ class Options_panel(wx.Panel):
                     groups.append((box, g_sizer, 'left'))
                     row = 0
 
-                id = wx.NewId()
-                label_id = wx.NewId()
+                id = MyWindowIDRef(wx.NewIdRef())
+                label_id = MyWindowIDRef(wx.NewIdRef())
                 opt[Id] = id
                 opt[Label_id] = label_id
                 opt[Value] = opt[Default]
@@ -248,7 +260,7 @@ class Options_panel(wx.Panel):
                     tip = opt[Tip]
                     
                 label.SetToolTip(tip)
-                if GTK():
+                if not GTK():
                     # Tooltips on labels don't work in GTK.
                     # Large tooltips on widgets obscure choices in Mac.
                     x.SetToolTip(tip)
