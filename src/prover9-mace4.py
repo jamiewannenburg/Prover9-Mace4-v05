@@ -35,9 +35,9 @@ if 'XDG_SESSION_TYPE' in os.environ and os.environ['XDG_SESSION_TYPE'] == 'wayla
     os.environ['QT_QPA_PLATFORM'] = 'xcb'
     os.environ['WLR_NO_HARDWARE_CURSORS'] = '1'
 
-os.environ['GTK_OVERLAY_SCROLLING'] = '0'
-# os.environ['G_DEBUG'] = 'fatal-warnings'
-# os.environ['G_DEBUG'] = 'fatal-criticals'
+    os.environ['GTK_OVERLAY_SCROLLING'] = '0'
+    # os.environ['G_DEBUG'] = 'fatal-warnings'
+    # os.environ['G_DEBUG'] = 'fatal-criticals'
 
 import wx
 import wx.adv

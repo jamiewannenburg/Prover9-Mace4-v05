@@ -244,12 +244,12 @@ class Options_panel(wx.Panel):
                     if min > max:
                         min, max = max, min
                     # Handle extremely large values that can cause GTK errors
-                    if min == -sys.maxsize:
-                        min = -999999  # Use a large but safer negative value
-                    if max == sys.maxsize:
-                        max = 999999   # Use a large but safer positive value
+                    if min <= -9999: #-sys.maxsize:
+                        min = -9999  # Use a large but safer negative value
+                    if max >= 9999:#sys.maxsize:
+                        max = 9999   # Use a large but safer positive value
                         
-                    x = wx.SpinCtrl(self,id) #,min=min,max=max,size=(75,20)
+                    x = wx.SpinCtrl(self,id,min=min,max=max,size=(75,20)) #
                     self.Bind(wx.EVT_SPINCTRL, self.on_change, x)
                     x.SetValue(opt[Default])
                     tip = ('%s Range is [%d ... %d].' % (opt[Tip], min, max))
@@ -259,10 +259,10 @@ class Options_panel(wx.Panel):
                     x.SetStringSelection(opt[Default])
                     tip = opt[Tip]
                     
-                label.SetToolTip(tip)
                 if not GTK():
                     # Tooltips on labels don't work in GTK.
                     # Large tooltips on widgets obscure choices in Mac.
+                    label.SetToolTip(tip)
                     x.SetToolTip(tip)
 
                 g_sizer.Add(label, (row,0), (1,1),

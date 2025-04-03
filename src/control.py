@@ -500,7 +500,7 @@ class Run_program:
                 (rc,output,err) = run_and_wait(success_command, fin=self.fout)
 
                 if rc == 0:  
-                    self.solution = output  # at least one solution
+                    self.solution = output.decode('utf-8')  # at least one solution
                 elif rc == 2:
                     self.solution = None  # no solution (clear(print_proofs)?)
                 else:
