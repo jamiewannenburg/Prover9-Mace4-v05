@@ -49,6 +49,8 @@ def run_and_wait(command, input = '', fin = None):
 
     if not fin:
         fin  = tempfile.TemporaryFile('w+b')  # stdin
+        if isinstance(input, str):
+            input = input.encode('utf-8')
         fin.write(input)
         fin.seek(0)
 
@@ -80,6 +82,10 @@ def isofilter_command(program_name):
         return [fullpath]
 
 def ops_in_interp(s):
+    # Convert bytes to string if needed
+    if isinstance(s, bytes):
+        s = s.decode('utf-8', errors='replace')
+        
     i = s.find('interpretation(')
     ops = []
     if i >= 0:
@@ -138,6 +144,9 @@ class Prover9:
             return [fullpath]
 
     def exists_solution(self, exit_code, output):
+        # Handle bytes objects by decoding them to strings
+        if isinstance(output, bytes):
+            output = output.decode('utf-8', errors='replace')
         return output.find('== PROOF ==') >= 0
 
     def count_solutions(self, solutions):
@@ -227,6 +236,9 @@ class Mace4:
             return [fullpath]
 
     def exists_solution(self, exit_code, output):
+        # Handle bytes objects by decoding them to strings
+        if isinstance(output, bytes):
+            output = output.decode('utf-8', errors='replace')
         return output.find('== MODEL ==') >= 0
 
     def count_solutions(self, solutions):
@@ -373,6 +385,10 @@ class Reformat_proof:
         if exit_code != 0:
             error_dialog("Error reformatting proofs")
         else:
+            # Decode bytes to string if necessary
+            if isinstance(output, bytes):
+                output = output.decode('utf-8', errors='replace')
+                
             args = ' '.join(command[1:])
             n = self.num_proofs
             if self.num_proofs == 1:
@@ -421,6 +437,10 @@ class Reformat_model:
         if exit_code != 0:
             error_dialog("Error reformatting models")
         else:
+            # Decode bytes to string if necessary
+            if isinstance(output, bytes):
+                output = output.decode('utf-8', errors='replace')
+                
             args = ' '.join(command[1:])
             n = self.num_models
             if self.num_models == 1:

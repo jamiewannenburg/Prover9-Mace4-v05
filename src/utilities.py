@@ -22,6 +22,9 @@ import re
 def grep(pattern, lines):
     result = []
     for line in lines:
+        # Handle bytes objects by decoding them to strings
+        if isinstance(line, bytes):
+            line = line.decode('utf-8', errors='replace')
         if re.search(pattern, line):
             result.append(line)
     return result
@@ -29,6 +32,9 @@ def grep(pattern, lines):
 def grep_last(pattern, lines):
     result = None
     for line in lines:
+        # Handle bytes objects by decoding them to strings
+        if isinstance(line, bytes):
+            line = line.decode('utf-8', errors='replace')
         if re.search(pattern, line):
             result = line
     return result

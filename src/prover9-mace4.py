@@ -674,7 +674,7 @@ class My_app(wx.App):
 os.chdir(os.path.expanduser('~'))  # set current directory to user's home
 
 app = My_app(redirect=False)
-import wx.lib.inspection
-wx.lib.inspection.InspectionTool().Show()
+# import wx.lib.inspection
+# wx.lib.inspection.InspectionTool().Show()
 app.MainLoop()
 

@@ -244,7 +244,7 @@ class Mini_info(wx.MiniFrame):
             gsizer = wx.GridSizer(len(items), 2)
         except TypeError:
             # For newer wxPython versions
-            gsizer = wx.GridSizer(rows=len(items), cols=2)
+            gsizer = wx.GridSizer(len(items), 2, 5, 5)
 
         self.val_labels = []
         for (name,val) in items:
