@@ -238,7 +238,13 @@ class Mini_info(wx.MiniFrame):
             self.Bind(wx.EVT_BUTTON, self.on_close, close_btn)
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
-        gsizer = wx.GridSizer(len(items), 2)
+        # In newer wxPython, the GridSizer constructor takes rows and cols as separate parameters
+        # or as a single tuple. Update to work with both old and new wxPython versions.
+        try:
+            gsizer = wx.GridSizer(len(items), 2)
+        except TypeError:
+            # For newer wxPython versions
+            gsizer = wx.GridSizer(rows=len(items), cols=2)
 
         self.val_labels = []
         for (name,val) in items:

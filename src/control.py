@@ -440,19 +440,19 @@ class Reformat_model:
 
 class Run_program:
     def __init__(self, parent, program, input):
-        self.parent = parent
         self.program = program
+        self.parent = parent
         self.input = input
-        self.output = None
+        self.saved_input = [False]
+        self.saved_output = [False]
+        self.saved_solution = parent.saved_solution
+        self.fin = None  # do this later in the thread
+        self.output = ''  # Collect stdout here
         self.solution = None
-        self.exit_code = None
-        self.state = State.ready  # ready, running, suspended, done, error
+        self.exit_code = 0
+        self.state = State.ready
 
-        # The following are lists so they can be altered as side effects.
-        self.saved_input    = [False]
-        self.saved_output   = [False]
-        self.saved_solution = [False]
-
+        # Start a thread
         _thread.start_new_thread(self.run, ())
 
     def run(self):
@@ -472,7 +472,7 @@ class Run_program:
             self.fout = tempfile.TemporaryFile('w+b')  # stdout
             self.ferr = tempfile.TemporaryFile('w+b')  # stderr
 
-            self.fin.write(self.input)
+            self.fin.write(self.input.encode('ascii'))
             self.fin.seek(0)
 
             if Win32():
@@ -553,6 +553,15 @@ class Program_panel(wx.Panel):
         self.job = None
         self.info_panel = None
         self.timer = None        # for monitoring (Info button)
+
+        # Initialize member variables for the job state
+        self.input = None
+        self.input_saved = False
+        self.output = None
+        self.output_saved = False
+        self.solution = None
+        self.solution_saved = False
+        self.saved_solution = [False]  # wrap in list for pass-by-reference
 
         wx.Panel.__init__(self, parent)
         self.Connect(-1, -1, Invoke_event.my_EVT_INVOKE, self.on_invoke)
@@ -714,12 +723,12 @@ class Program_panel(wx.Panel):
                 if rc == wx.ID_CANCEL:
                     return
 
-            self.job.done_with_job()
-            self.job = None
+            self.job = None  # Will be handled by garbage collection
 
             self.info_btn.Enable(False)
             if self.info_panel:
                 self.info_panel.Close()
+                self.info_panel = None  # Clear the reference
 
         self.start_btn.Enable(False)
         self.time_ctrl.Enable(False)
@@ -735,6 +744,10 @@ class Program_panel(wx.Panel):
 
     def on_pause_resume(self, evt):
         # assume job is running or suspended
+        if not self.job:
+            error_dialog('pause_resume: job is None')
+            return
+            
         if self.job.state == State.running:
             self.job.pause()
             self.bar.pause()
@@ -750,6 +763,10 @@ class Program_panel(wx.Panel):
 
     def on_kill(self, evt):
         # assume job is running or suspended
+        if not self.job:
+            error_dialog('kill: job is None')
+            return
+            
         self.job.kill()  # calls job_finished indirectly
 
     def job_state(self):

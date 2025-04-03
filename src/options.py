@@ -231,14 +231,13 @@ class Options_panel(wx.Panel):
                     # Ensure min <= max (GTK requirement)
                     if min > max:
                         min, max = max, min
-                    
                     # Handle extremely large values that can cause GTK errors
                     if min == -sys.maxsize:
-                        min = -1000000  # Use a large but safer negative value
+                        min = -999999  # Use a large but safer negative value
                     if max == sys.maxsize:
-                        max = 1000000   # Use a large but safer positive value
+                        max = 999999   # Use a large but safer positive value
                         
-                    x = wx.SpinCtrl(self,id,min=min,max=max,size=(75,-1))
+                    x = wx.SpinCtrl(self,id) #,min=min,max=max,size=(75,20)
                     self.Bind(wx.EVT_SPINCTRL, self.on_change, x)
                     x.SetValue(opt[Default])
                     tip = ('%s Range is [%d ... %d].' % (opt[Tip], min, max))
