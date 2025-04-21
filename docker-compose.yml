@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  prover9-mace4-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    volumes:
+      # Mount a local directory for saving files
+      - ./saved:/app/saved
+    environment:
+      - PYTHONUNBUFFERED=1 
