@@ -72,7 +72,7 @@ def run_and_wait(command, input = '', fin = None):
     fin.close()
     fout.close()
     ferr.close()
-    return (exit_code, output, error)
+    return (exit_code, output, error)  # Return raw bytes - let caller handle decoding
 
 def isofilter_command(program_name):
     fullpath = os.path.join(bin_dir(), program_name)
@@ -1075,6 +1075,9 @@ class Isofilter_frame(wx.Frame):
         self.fout = tempfile.TemporaryFile('w+b')  # stdout
         self.ferr = tempfile.TemporaryFile('w+b')  # stderr
 
+        # Encode string to bytes before writing to binary file
+        if isinstance(self.models, str):
+            self.models = self.models.encode('utf-8')
         self.fin.write(self.models)
         self.fin.seek(0)
 
@@ -1101,8 +1104,14 @@ class Isofilter_frame(wx.Frame):
         if self.exit_code == 1:
             self.ferr.seek(0)  # rewind stderr
             err = self.ferr.read()
+            if isinstance(err, bytes):
+                err = err.decode('utf-8', errors='replace')
             error_dialog('Isofilter error:\n\n' + err)
         elif self.exit_code == 0:
+            # Decode bytes to string if needed
+            if isinstance(self.filtered_models, bytes):
+                self.filtered_models = self.filtered_models.decode('utf-8', errors='replace')
+                
             n = self.filtered_models.rfind(': input=')
             if n == -1:
                 error_dialog('Isofilter error')
