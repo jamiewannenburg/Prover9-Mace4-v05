@@ -1,4 +1,3 @@
-
 **NEW:** This fork is being updated to work with Python 3. This is still a work in progress.
 
 I am testing it on Ubuntu 24.04.
@@ -81,3 +80,19 @@ Download: [p9m4-v05.tar.gz](https://github.com/laitep/Prover9-Mace4-v05/releases
   sys.maxint = 2147483647 # avoids bug in wx.SpinCtrl on 64-bit systems
 
 - The included prover binaries (prover9, prooftrans, mace4, interpformat, isofilter, isofilter2) are compiled for i386. If you have different hardware, you can fetch [LADR-2009-11A.tar.gz](https://github.com/laitep/ladr/releases/download/v1.0.0/LADR-2009-11A.tar.gz), compile, and replace those 6 binaries in the directory p9m4-v04/bin.
+
+## Docker Deployment
+
+You can run this project easily using Docker:
+
+```bash
+# Enable BuildKit (recommended method)
+export DOCKER_BUILDKIT=1
+
+# Build and run with docker-compose
+docker-compose up -d
+```
+
+Then access the web interface at http://localhost:8080
+
+For more detailed Docker instructions, see [README-WebUI.md](README-WebUI.md).

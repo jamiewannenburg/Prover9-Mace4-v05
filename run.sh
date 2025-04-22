@@ -6,15 +6,15 @@
 mkdir -p saved
 
 # Check if Docker is installed
-if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
-    echo "Docker and docker-compose are installed. Starting with Docker..."
-    docker-compose up -d
+if command -v docker &> /dev/null &> /dev/null; then
+    echo "Docker is installed. Starting with Docker..."
+    docker compose up -d
     
     echo ""
     echo "Prover9-Mace4 Web UI is now running!"
     echo "Open your browser and go to: http://localhost:8080"
     echo ""
-    echo "To stop the app, run: docker-compose down"
+    echo "To stop the app, run: docker compose down"
     
 elif command -v python3 &> /dev/null; then
     echo "Docker not found. Checking for Python environment..."

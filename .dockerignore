@@ -1,0 +1,26 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Docker
+.dockerignore
+
+# Editor directories
+.vscode/
+.idea/
+
+# Local saved data
+saved/
+
+# Documentation
+README*
+docs/
+imgs/
+LICENSE 

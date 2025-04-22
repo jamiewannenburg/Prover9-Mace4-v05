@@ -28,12 +28,38 @@ A modern browser-based user interface for Prover9 and Mace4 based on PyWebIO.
 
 ### Option 2: Run with Docker
 
-1. Build and start the container:
+1. Build and start the container using Docker Buildx (recommended method):
    ```
-   docker-compose up -d
+   # Enable BuildKit by default (only needed once)
+   export DOCKER_BUILDKIT=1
+   
+   # Build and run with docker-compose
+   docker compose up -d
+   ```
+
+   Alternatively, you can use the classic Docker build method:
+   ```
+   docker compose up -d
    ```
 
 2. Open your browser and go to http://localhost:8080
+
+### Option 3: Build using Docker Buildx CLI directly
+
+If you want to use advanced Buildx features:
+
+```bash
+# Create a new builder instance (first time only)
+docker buildx create --name mybuilder --use
+
+# Build the image
+docker buildx build -t prover9-mace4-web .
+
+# Run the container
+docker run -p 8080:8080 -d prover9-mace4-web
+```
+
+This method allows multi-platform builds and other advanced features.
 
 ## Usage
 

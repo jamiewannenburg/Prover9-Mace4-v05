@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Use BuildKit for building
+      args:
+        BUILDKIT_INLINE_CACHE: 1
     ports:
       - "8080:8080"
     restart: unless-stopped
