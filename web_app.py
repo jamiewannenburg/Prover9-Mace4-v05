@@ -31,6 +31,23 @@ PROGRAM_VERSION = '0.5 Web'
 PROGRAM_DATE = 'May 2023'
 BANNER = f'{PROGRAM_NAME} Version {PROGRAM_VERSION}, {PROGRAM_DATE}'
 
+# Output formats
+PROVER9_FORMATS = [
+    {'label': 'Text', 'value': 'text'},
+    {'label': 'XML', 'value': 'xml'},
+    {'label': 'TeX', 'value': 'tex'}
+]
+
+MACE4_FORMATS = [
+    {'label': 'Text', 'value': 'text'},
+    {'label': 'XML', 'value': 'xml'},
+    {'label': 'Portable', 'value': 'portable'},
+    {'label': 'Tabular', 'value': 'tabular'},
+    {'label': 'Raw', 'value': 'raw'},
+    {'label': 'Cooked', 'value': 'cooked'},
+    {'label': 'Standard', 'value': 'standard'}
+]
+
 # Global process tracking
 PROCESS = {
     'prover9': {'process': None, 'running': False, 'killed': False},
@@ -117,19 +134,20 @@ def read_sample(filename):
             return f.read()
     return ""
 
-def get_prover9_stats(stderr):
-    """Extract statistics from prover9 stderr output"""
+def get_prover9_stats(stdout):
+    """Extract statistics from prover9 stdout output"""
     stats = []
     
     # Extract CPU time
-    match = re.search(r'User_CPU=(\d*\.\d*)', stderr)
+    match = re.search(r'User_CPU=(\d*\.\d*)', stdout)
     if match:
         stats.append(('CPU Time', f"{match.group(1)} seconds"))
     else:
         stats.append(('CPU Time', "?"))
     
     # Extract clause counts
-    match = re.search(r'Given=(\d+)\. Generated=(\d+)\. Kept=(\d+)', stderr)
+    # Look for line like: "Given=67. Generated=519. Kept=169."
+    match = re.search(r'Given=(\d+)\.\s+Generated=(\d+)\.\s+Kept=(\d+)', stdout)
     if match:
         stats.append(('Given', match.group(1)))
         stats.append(('Generated', match.group(2)))
@@ -140,7 +158,7 @@ def get_prover9_stats(stderr):
         stats.append(('Kept', "?"))
     
     # Extract proof count
-    match = re.search(r'proofs=(\d+)', stderr)
+    match = re.search(r'proofs=(\d+)', stdout)
     if match:
         stats.append(('Proofs', match.group(1)))
     else:
@@ -148,26 +166,26 @@ def get_prover9_stats(stderr):
     
     return stats
 
-def get_mace4_stats(stderr):
-    """Extract statistics from mace4 stderr output"""
+def get_mace4_stats(stdout):
+    """Extract statistics from mace4 stdout output"""
     stats = []
     
-    # Extract domain size
-    match = re.search(r'Domain_size=(\d+)', stderr)
-    if match:
-        stats.append(('Domain Size', match.group(1)))
+    # Extract domain size from the last domain size section
+    domain_size_matches = re.findall(r'============================== DOMAIN SIZE (\d+) =========================', stdout)
+    if domain_size_matches:
+        stats.append(('Domain Size', domain_size_matches[-1]))  # Get the last one
     else:
         stats.append(('Domain Size', "?"))
     
     # Extract model count
-    match = re.search(r'Models=(\d+)', stderr)
+    match = re.search(r'Exiting with (\d+) model', stdout)
     if match:
         stats.append(('Models', match.group(1)))
     else:
         stats.append(('Models', "?"))
     
     # Extract CPU time
-    match = re.search(r'User_CPU=(\d*\.\d*)', stderr)
+    match = re.search(r'User_CPU=(\d*\.\d*)', stdout)
     if match:
         stats.append(('CPU Time', f"{match.group(1)} seconds"))
     else:
@@ -284,7 +302,8 @@ def mace4_options_panel():
             put_input('max_seconds_mace', label='Max Seconds', type=NUMBER, value=60),
             put_input('max_megs_mace', label='Max Memory (MB)', type=NUMBER, value=500),
             put_input('domain_size', label='Start Size', type=NUMBER, value=2),
-            put_input('end_size', label='End Size', type=NUMBER, value=10)
+            put_input('end_size', label='End Size', type=NUMBER, value=10),
+            put_input('max_models', label='Max Models', type=NUMBER, value=1)
         ], size='1/2'),
         put_column([
             put_text("Advanced Options:"),
@@ -325,6 +344,7 @@ def prover9_run_panel():
             put_row([
                 put_button("Start Prover9", onclick=run_prover9, color='primary'),
                 put_button("Kill", onclick=lambda: kill_process('prover9'), color='danger'),
+                put_button("Save Output", onclick=save_prover9_output, color='success'),
                 None,  # Spacer
                 put_text("Status:"),
                 put_html('<span id="prover9_status" style="color: green;">Idle</span>'),
@@ -342,6 +362,7 @@ def mace4_run_panel():
             put_row([
                 put_button("Start Mace4", onclick=run_mace4, color='primary'),
                 put_button("Kill", onclick=lambda: kill_process('mace4'), color='danger'),
+                put_button("Save Output", onclick=save_mace4_output, color='success'),
                 None,  # Spacer
                 put_text("Status:"),
                 put_html('<span id="mace4_status" style="color: green;">Idle</span>'),
@@ -478,6 +499,7 @@ def run_prover9():
             put_row([
                 put_button("Start Prover9", onclick=run_prover9, color='primary', disabled=True),
                 put_button("Kill", onclick=lambda: kill_process('prover9'), color='danger'),
+                put_button("Save Output", onclick=save_prover9_output, color='success'),
                 None,  # Spacer
                 put_text("Status:"),
                 put_html('<span id="prover9_status" style="color: orange;">Running</span>'),
@@ -532,7 +554,7 @@ def run_prover9():
                     run_js('document.getElementById("prover9_status").style.color = "green"')
                 
                 # Update stats display
-                stats = get_prover9_stats(error)
+                stats = get_prover9_stats(output)
                 stats_html = '<table style="width:100%"><tbody>'
                 for key, value in stats:
                     stats_html += f'<tr><td>{key}</td><td>{value}</td></tr>'
@@ -563,7 +585,7 @@ def run_prover9():
             run_js(f'document.getElementById("prover9_status").style.color = "{status_color}"')
             
             # Update stats display
-            stats = get_prover9_stats(error)
+            stats = get_prover9_stats(output)
             stats.append(('Exit Code', f"{exit_code} ({PROVER9_EXITS.get(exit_code, 'Unknown')})"))
             stats.append(('Total Time', f"{duration:.2f} seconds"))
             
@@ -580,6 +602,7 @@ def run_prover9():
                     put_row([
                         put_button("Start Prover9", onclick=run_prover9, color='primary'),
                         put_button("Kill", onclick=lambda: kill_process('prover9'), color='danger', disabled=True),
+                        put_button("Save Output", onclick=save_prover9_output, color='success'),
                         None,  # Spacer
                         put_text("Status:"),
                         put_html(f'<span id="prover9_status" style="color: {status_color};">{status_text}</span>'),
@@ -624,6 +647,7 @@ def run_mace4():
             put_row([
                 put_button("Start Mace4", onclick=run_mace4, color='primary', disabled=True),
                 put_button("Kill", onclick=lambda: kill_process('mace4'), color='danger'),
+                put_button("Save Output", onclick=save_mace4_output, color='success'),
                 None,  # Spacer
                 put_text("Status:"),
                 put_html('<span id="mace4_status" style="color: orange;">Running</span>'),
@@ -642,11 +666,12 @@ def run_mace4():
     max_megs = pin.max_megs_mace
     domain_size = pin.domain_size
     end_size = pin.end_size
+    max_models = pin.max_models
     
     # Build command
     mace4_path = os.path.join(BIN_DIR, 'mace4')
-    command = [mace4_path, f"-t{max_seconds}", f"-m{max_megs}", 
-              f"-n{domain_size}", f"-N{end_size}"]
+    command = [mace4_path, "-c", f"-t{max_seconds}", f"-b{max_megs}", 
+              f"-n{domain_size}", f"-N{end_size}", f"-m{max_models}"]
     
     # Start the process
     def run_task():
@@ -681,7 +706,7 @@ def run_mace4():
                     run_js('document.getElementById("mace4_status").style.color = "green"')
                 
                 # Update stats display
-                stats = get_mace4_stats(error)
+                stats = get_mace4_stats(output)
                 stats_html = '<table style="width:100%"><tbody>'
                 for key, value in stats:
                     stats_html += f'<tr><td>{key}</td><td>{value}</td></tr>'
@@ -712,7 +737,7 @@ def run_mace4():
             run_js(f'document.getElementById("mace4_status").style.color = "{status_color}"')
             
             # Update stats display
-            stats = get_mace4_stats(error)
+            stats = get_mace4_stats(output)
             stats.append(('Exit Code', f"{exit_code} ({MACE4_EXITS.get(exit_code, 'Unknown')})"))
             stats.append(('Total Time', f"{duration:.2f} seconds"))
             
@@ -729,6 +754,7 @@ def run_mace4():
                     put_row([
                         put_button("Start Mace4", onclick=run_mace4, color='primary'),
                         put_button("Kill", onclick=lambda: kill_process('mace4'), color='danger', disabled=True),
+                        put_button("Save Output", onclick=save_mace4_output, color='success'),
                         None,  # Spacer
                         put_text("Status:"),
                         put_html(f'<span id="mace4_status" style="color: {status_color};">{status_text}</span>'),
@@ -782,6 +808,183 @@ def kill_process(program):
             toast(f"Failed to terminate {program} process", color='error')
     else:
         toast(f"No {program} process to kill", color='warn')
+
+def save_prover9_output():
+    """Save Prover9 output in the selected format"""
+    output = pin.prover9_output
+    if not output:
+        toast("No output to save", color='warn')
+        return
+    
+    format_value = select("Select output format", options=PROVER9_FORMATS)
+    filename = input("Enter filename", placeholder="prover9_output.txt")
+    
+    if not filename:
+        filename = "prover9_output.txt"
+    
+    try:
+        if format_value == 'text':
+            # Save as plain text
+            content = output
+        else:
+            # Process with prooftrans
+            prooftrans_path = os.path.join(BIN_DIR, 'prooftrans')
+            if not binary_ok(prooftrans_path):
+                toast("prooftrans binary not found or not executable", color='error')
+                return
+            
+            result = subprocess.run(
+                [prooftrans_path, format_value],
+                input=output.encode('utf-8'),
+                capture_output=True,
+                text=True
+            )
+            
+            if result.returncode != 0:
+                toast(f"Error converting output: {result.stderr}", color='error')
+                return
+            
+            content = result.stdout
+        
+        # Ensure content is bytes
+        if isinstance(content, str):
+            content = content.encode('utf-8')
+        
+        # Provide the file for download
+        put_file(filename, content)
+        toast(f"Output saved as {filename}", color='success')
+        
+    except Exception as e:
+        toast(f"Error saving output: {str(e)}", color='error')
+
+def save_mace4_output():
+    """Save Mace4 output in the selected format"""
+    output = pin.mace4_output
+    if not output:
+        toast("No output to save", color='warn')
+        return
+    
+    format_value = select("Select output format", options=MACE4_FORMATS)
+    
+    # Add checkbox for removing isomorphic copies
+    remove_isomorphic = checkbox("Options", options=[
+        {'label': 'Remove isomorphic copies', 'value': 'remove_iso'}
+    ])
+    
+    filename = input("Enter filename", placeholder="mace4_output.txt")
+    
+    if not filename:
+        filename = "mace4_output.txt"
+    
+    try:
+        # Make sure output is a string to start with
+        if isinstance(output, bytes):
+            output = output.decode('utf-8')
+        
+        # Remove any decorative headers we might have added for display
+        # Strip out the "## MODEL FOUND ##" or similar headers
+        if output.startswith("## MODEL FOUND ##"):
+            output = output.replace("## MODEL FOUND ##\n\n", "", 1)
+        elif output.startswith("## NO MODEL FOUND ##"):
+            output = output.replace("## NO MODEL FOUND ##\n\n", "", 1)
+        
+        # For isofilter, we need to extract just the interpretation sections
+        if 'remove_iso' in remove_isomorphic and format_value != 'text':
+            # Parse out only the model parts of the output
+            model_sections = []
+            
+            # Find all interpretation sections
+            interpretation_matches = re.finditer(r'(interpretation\(\s*\d+,\s*\[\s*.*?\s*\]\s*\)\s*\.)', output, re.DOTALL)
+            
+            for match in interpretation_matches:
+                model_sections.append(match.group(1))
+            
+            if model_sections:
+                # Combine all models
+                models_only = "\n".join(model_sections)
+                toast(f"Found {len(model_sections)} model sections to filter", color='info')
+                # Use this for isofilter
+                processed_output = models_only
+            else:
+                # No models found
+                toast("No model interpretations found in the output", color='warn')
+                # Use raw output, but this might fail with isofilter
+                processed_output = output
+        else:
+            # For text format or no filtering, use full output
+            processed_output = output
+        
+        if format_value == 'text':
+            # Save as plain text
+            content = output  # Use original output for text, not the model-only version
+        else:
+            # Check for required binaries
+            interpformat_path = os.path.join(BIN_DIR, 'interpformat')
+            if not binary_ok(interpformat_path):
+                toast("interpformat binary not found or not executable", color='error')
+                return
+            
+            # Filter isomorphic models if requested
+            if 'remove_iso' in remove_isomorphic:
+                isofilter_path = os.path.join(BIN_DIR, 'isofilter')
+                if not binary_ok(isofilter_path):
+                    toast("isofilter binary not found or not executable", color='error')
+                    return
+                
+                # Ensure we're passing string input as bytes to subprocess
+                input_bytes = processed_output.encode('utf-8')
+                
+                # Run isofilter first
+                isofilter_result = subprocess.run(
+                    [isofilter_path],
+                    input=input_bytes,
+                    capture_output=True
+                )
+                
+                if isofilter_result.returncode != 0:
+                    stderr = isofilter_result.stderr
+                    if isinstance(stderr, bytes):
+                        stderr = stderr.decode('utf-8')
+                    toast(f"Error filtering isomorphic models: {stderr}", color='error')
+                    return
+                
+                # Output from isofilter is in bytes
+                processed_output = isofilter_result.stdout
+                
+                # Convert back to string for next step
+                if isinstance(processed_output, bytes):
+                    processed_output = processed_output.decode('utf-8')
+            
+            # Then run interpformat
+            # Ensure we're passing string input as bytes to subprocess
+            input_bytes = processed_output.encode('utf-8')
+            
+            interpformat_result = subprocess.run(
+                [interpformat_path, format_value],
+                input=input_bytes,
+                capture_output=True
+            )
+            
+            if interpformat_result.returncode != 0:
+                stderr = interpformat_result.stderr
+                if isinstance(stderr, bytes):
+                    stderr = stderr.decode('utf-8')
+                toast(f"Error converting output: {stderr}", color='error')
+                return
+            
+            # Output from interpformat is in bytes
+            content = interpformat_result.stdout
+        
+        # Always ensure content is bytes before putting file
+        if isinstance(content, str):
+            content = content.encode('utf-8')
+        
+        # Provide the file for download
+        put_file(filename, content)
+        toast(f"Output saved as {filename}", color='success')
+        
+    except Exception as e:
+        toast(f"Error saving output: {str(e)}", color='error')
 
 # Run the app
 if __name__ == '__main__':
