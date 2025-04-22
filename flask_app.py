@@ -6,82 +6,30 @@ Allows running the app with Flask's development server or other WSGI servers
 
 import os
 from flask import Flask, render_template_string, send_from_directory
+import argparse
 from pywebio.platform.flask import webio_view
 from waitress import serve
 
-# Import the PyWebIO app
-from web_app import prover9_mace4_app
+# Import the main application from web_app.py
+from web_app import prover9_mace4_app, PROGRAM_NAME
 
 # Create Flask app
 app = Flask(__name__)
 
-# Register the PyWebIO application
-app.add_url_rule('/tool', 'webio_view', webio_view(prover9_mace4_app), methods=['GET', 'POST', 'OPTIONS'])
+# Add PyWebIO route
+app.add_url_rule('/', 'webio_view', webio_view(prover9_mace4_app), methods=['GET', 'POST', 'OPTIONS'])
 
-# Root route to redirect to the PyWebIO app
-@app.route('/')
-def index():
-    html = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Prover9-Mace4 Web UI</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                margin: 0;
-                padding: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                background-color: #f5f5f5;
-            }
-            .container {
-                text-align: center;
-                padding: 2rem;
-                background-color: white;
-                border-radius: 8px;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            h1 {
-                color: #333;
-            }
-            .button {
-                display: inline-block;
-                background-color: #4CAF50;
-                color: white;
-                padding: 10px 20px;
-                margin: 20px 0;
-                border-radius: 4px;
-                text-decoration: none;
-                font-weight: bold;
-            }
-            .button:hover {
-                background-color: #45a049;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>Prover9-Mace4 Web UI</h1>
-            <p>A modern browser-based interface for Prover9 and Mace4</p>
-            <a href="/tool" class="button">Launch Application</a>
-        </div>
-    </body>
-    </html>
-    """
-    return render_template_string(html)
-
-# Serve static files
-@app.route('/saved/<path:path>')
-def send_saved(path):
-    return send_from_directory('saved', path)
+# Add favicon route
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'Images'),
+        'p9.ico', 
+        mimetype='image/png'
+    )
 
 if __name__ == '__main__':
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Prover9-Mace4 Web GUI - Flask Integration')
+    parser = argparse.ArgumentParser(description=f'{PROGRAM_NAME} Web GUI (Flask)')
     parser.add_argument('--port', type=int, default=8080, help='Port to run the web server on')
     parser.add_argument('--debug', action='store_true', help='Run in debug mode')
     parser.add_argument('--production', action='store_true', help='Run in production mode with Waitress')

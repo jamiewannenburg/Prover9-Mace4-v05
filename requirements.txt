@@ -2,3 +2,4 @@ pywebio>=1.8.2
 pywebio-battery>=0.2.0
 flask>=2.0.1
 waitress>=2.1.2 
+pillow>=10.0.0

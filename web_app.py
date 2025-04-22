@@ -20,9 +20,9 @@ from pywebio.input import *
 from pywebio.output import *
 from pywebio.pin import *
 from pywebio.session import *
+from pywebio.session import get_info
 from pywebio import config, start_server
 from pywebio.platform.flask import webio_view
-from flask import Flask
 
 # Constants
 BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'bin')
@@ -226,6 +226,15 @@ def prover9_mace4_app():
     setup_panel()
     run_panel()
 
+    # Set favicon using JavaScript - only when running under Flask
+    if info.backend == 'flask':
+        image_url = "/favicon.ico"
+        run_js("""
+        $('#favicon32,#favicon16').remove(); 
+        $('head').append('<link rel="icon" type="image/png" href="%s">')
+        """ % image_url)
+    
+
 def setup_panel():
     """Setup panel with formula input and options"""
     with use_scope('setup_panel', clear=True):
@@ -388,12 +397,23 @@ def load_sample():
     sample = select("Select a sample file", options=samples)
     content = read_sample(sample)
     
-    # Parse the sample to extract assumptions and goals
+    # Parse the sample to extract assumptions, goals, and options
     assumptions = ""
     goals = ""
     section = None
     
+    # Options to extract
+    prover9_options = set()
+    mace4_options = set()
+    language_options = set()
+    prover9_assigns = {}
+    mace4_assigns = {}
+    current_program = None
+    
     for line in content.splitlines():
+        line = line.strip()
+        
+        # Check for section markers
         if "formulas(assumptions)." in line:
             section = "assumptions"
             continue
@@ -403,14 +423,130 @@ def load_sample():
         elif "end_of_list." in line:
             section = None
             continue
+        elif "if(Prover9)." in line:
+            current_program = "prover9"
+            continue
+        elif "if(Mace4)." in line:
+            current_program = "mace4"
+            continue
+        elif "end_if." in line:
+            current_program = None
+            continue
         
+        # Extract content based on current section
         if section == "assumptions":
             assumptions += line + "\n"
         elif section == "goals":
             goals += line + "\n"
+        # Extract options
+        elif current_program == "prover9":
+            # Check for options in the form: set(option_name).
+            if line.startswith("set(") and line.endswith(")."):
+                option = line[4:-2].strip()
+                prover9_options.add(option)
+            # Check for assignments in the form: assign(option_name, value).
+            elif line.startswith("assign(") and line.endswith(")."):
+                # Extract the option name and value
+                option_parts = line[7:-2].split(',', 1)
+                if len(option_parts) == 2:
+                    option_name = option_parts[0].strip()
+                    option_value = option_parts[1].strip()
+                    prover9_assigns[option_name] = option_value
+        elif current_program == "mace4":
+            # Check for options in the form: set(option_name).
+            if line.startswith("set(") and line.endswith(")."):
+                option = line[4:-2].strip()
+                mace4_options.add(option)
+            # Check for assignments in the form: assign(option_name, value).
+            elif line.startswith("assign(") and line.endswith(")."):
+                # Extract the option name and value
+                option_parts = line[7:-2].split(',', 1)
+                if len(option_parts) == 2:
+                    option_name = option_parts[0].strip()
+                    option_value = option_parts[1].strip()
+                    mace4_assigns[option_name] = option_value
+        # Check for global options outside of if blocks
+        elif current_program is None and not section:
+            if line.startswith("set(") and line.endswith(")."):
+                option = line[4:-2].strip()
+                language_options.add(option)
     
+    # Update the text areas
     pin_update('assumptions', value=assumptions)
     pin_update('goals', value=goals)
+    
+    # Update Prover9 options
+    if 'max_seconds' in prover9_assigns:
+        try:
+            pin_update('max_seconds', value=int(prover9_assigns['max_seconds']))
+        except ValueError:
+            pass
+    
+    if 'max_megs' in prover9_assigns:
+        try:
+            pin_update('max_megs', value=int(prover9_assigns['max_megs']))
+        except ValueError:
+            pass
+    
+    # Update search strategy
+    for strategy in ['auto', 'breadth_first', 'depth_first', 'iterative_depth_first']:
+        if strategy in prover9_options:
+            pin_update('search_strategy', value=strategy)
+            break
+    
+    # Update Prover9 checkboxes
+    prover_checkboxes = []
+    for option in ['build_models', 'print_kept', 'print_given']:
+        if option in prover9_options:
+            prover_checkboxes.append(option)
+    pin_update('prover_options', value=prover_checkboxes)
+    
+    # Update Mace4 options
+    if 'max_seconds' in mace4_assigns:
+        try:
+            pin_update('max_seconds_mace', value=int(mace4_assigns['max_seconds']))
+        except ValueError:
+            pass
+    
+    if 'max_megs' in mace4_assigns:
+        try:
+            pin_update('max_megs_mace', value=int(mace4_assigns['max_megs']))
+        except ValueError:
+            pass
+    
+    if 'start_size' in mace4_assigns:
+        try:
+            pin_update('domain_size', value=int(mace4_assigns['start_size']))
+        except ValueError:
+            pass
+    
+    if 'end_size' in mace4_assigns:
+        try:
+            pin_update('end_size', value=int(mace4_assigns['end_size']))
+        except ValueError:
+            pass
+    
+    if 'max_models' in mace4_assigns:
+        try:
+            pin_update('max_models', value=int(mace4_assigns['max_models']))
+        except ValueError:
+            pass
+    
+    # Update Mace4 checkboxes
+    mace_checkboxes = []
+    for option in ['print_models', 'print_models_portable', 'iterate']:
+        if option in mace4_options:
+            mace_checkboxes.append(option)
+    pin_update('mace_options', value=mace_checkboxes)
+    
+    # Update language options
+    language_checkboxes = []
+    for option in ['auto2', 'equality', 'function_style']:
+        if option in language_options:
+            language_checkboxes.append(option)
+    pin_update('options', value=language_checkboxes)
+    
+    toast(f"File '{sample}' loaded successfully", color='success')
 
 def load_file():
     """Load input from a user-uploaded file"""
@@ -421,12 +557,23 @@ def load_file():
     # Read file content
     content = uploaded['content'].decode('utf-8')
     
-    # Parse the uploaded file to extract assumptions and goals
+    # Parse the uploaded file to extract assumptions, goals, and options
     assumptions = ""
     goals = ""
     section = None
     
+    # Options to extract
+    prover9_options = set()
+    mace4_options = set()
+    language_options = set()
+    prover9_assigns = {}
+    mace4_assigns = {}
+    current_program = None
+    
     for line in content.splitlines():
+        line = line.strip()
+        
+        # Check for section markers
         if "formulas(assumptions)." in line:
             section = "assumptions"
             continue
@@ -436,36 +583,200 @@ def load_file():
         elif "end_of_list." in line:
             section = None
             continue
+        elif "if(Prover9)." in line:
+            current_program = "prover9"
+            continue
+        elif "if(Mace4)." in line:
+            current_program = "mace4"
+            continue
+        elif "end_if." in line:
+            current_program = None
+            continue
         
+        # Extract content based on current section
         if section == "assumptions":
             assumptions += line + "\n"
         elif section == "goals":
             goals += line + "\n"
+        # Extract options
+        elif current_program == "prover9":
+            # Check for options in the form: set(option_name).
+            if line.startswith("set(") and line.endswith(")."):
+                option = line[4:-2].strip()
+                prover9_options.add(option)
+            # Check for assignments in the form: assign(option_name, value).
+            elif line.startswith("assign(") and line.endswith(")."):
+                # Extract the option name and value
+                option_parts = line[7:-2].split(',', 1)
+                if len(option_parts) == 2:
+                    option_name = option_parts[0].strip()
+                    option_value = option_parts[1].strip()
+                    prover9_assigns[option_name] = option_value
+        elif current_program == "mace4":
+            # Check for options in the form: set(option_name).
+            if line.startswith("set(") and line.endswith(")."):
+                option = line[4:-2].strip()
+                mace4_options.add(option)
+            # Check for assignments in the form: assign(option_name, value).
+            elif line.startswith("assign(") and line.endswith(")."):
+                # Extract the option name and value
+                option_parts = line[7:-2].split(',', 1)
+                if len(option_parts) == 2:
+                    option_name = option_parts[0].strip()
+                    option_value = option_parts[1].strip()
+                    mace4_assigns[option_name] = option_value
+        # Check for global options outside of if blocks
+        elif current_program is None and not section:
+            if line.startswith("set(") and line.endswith(")."):
+                option = line[4:-2].strip()
+                language_options.add(option)
     
     # Update the text areas
     pin_update('assumptions', value=assumptions)
     pin_update('goals', value=goals)
+    
+    # Update Prover9 options
+    if 'max_seconds' in prover9_assigns:
+        try:
+            pin_update('max_seconds', value=int(prover9_assigns['max_seconds']))
+        except ValueError:
+            pass
+    
+    if 'max_megs' in prover9_assigns:
+        try:
+            pin_update('max_megs', value=int(prover9_assigns['max_megs']))
+        except ValueError:
+            pass
+    
+    # Update search strategy
+    for strategy in ['auto', 'breadth_first', 'depth_first', 'iterative_depth_first']:
+        if strategy in prover9_options:
+            pin_update('search_strategy', value=strategy)
+            break
+    
+    # Update Prover9 checkboxes
+    prover_checkboxes = []
+    for option in ['build_models', 'print_kept', 'print_given']:
+        if option in prover9_options:
+            prover_checkboxes.append(option)
+    pin_update('prover_options', value=prover_checkboxes)
+    
+    # Update Mace4 options
+    if 'max_seconds' in mace4_assigns:
+        try:
+            pin_update('max_seconds_mace', value=int(mace4_assigns['max_seconds']))
+        except ValueError:
+            pass
+    
+    if 'max_megs' in mace4_assigns:
+        try:
+            pin_update('max_megs_mace', value=int(mace4_assigns['max_megs']))
+        except ValueError:
+            pass
+    
+    if 'start_size' in mace4_assigns:
+        try:
+            pin_update('domain_size', value=int(mace4_assigns['start_size']))
+        except ValueError:
+            pass
+    
+    if 'end_size' in mace4_assigns:
+        try:
+            pin_update('end_size', value=int(mace4_assigns['end_size']))
+        except ValueError:
+            pass
+    
+    if 'max_models' in mace4_assigns:
+        try:
+            pin_update('max_models', value=int(mace4_assigns['max_models']))
+        except ValueError:
+            pass
+    
+    # Update Mace4 checkboxes
+    mace_checkboxes = []
+    for option in ['print_models', 'print_models_portable', 'iterate']:
+        if option in mace4_options:
+            mace_checkboxes.append(option)
+    pin_update('mace_options', value=mace_checkboxes)
+    
+    # Update language options
+    language_checkboxes = []
+    for option in ['auto2', 'equality', 'function_style']:
+        if option in language_options:
+            language_checkboxes.append(option)
+    pin_update('options', value=language_checkboxes)
     
     toast(f"File '{uploaded['filename']}' loaded successfully", color='success')
 
 def save_input():
     """Save the current input to a file"""
     filename = input("Enter filename to save input", placeholder="input.in")
+    if not filename:
+        filename = "input.in"
     
     assumptions = pin.assumptions
     goals = pin.goals
+    additional = pin.additional_input if hasattr(pin, 'additional_input') else ""
     
-    content = "formulas(assumptions).\n"
+    # Start with optional settings
+    content = "% Saved by Prover9-Mace4 Web GUI\n\n"
+    content += "set(ignore_option_dependencies). % GUI handles dependencies\n\n"
+    
+    # Add Prover9 options
+    content += "if(Prover9). % Options for Prover9\n"
+    if hasattr(pin, 'max_seconds'):
+        content += f"  assign(max_seconds, {pin.max_seconds}).\n"
+    if hasattr(pin, 'max_megs'):
+        content += f"  assign(max_megs, {pin.max_megs}).\n"
+    
+    # Add search strategy if not auto
+    if hasattr(pin, 'search_strategy') and pin.search_strategy != 'auto':
+        content += f"  set({pin.search_strategy}).\n"
+    
+    # Add Prover9 checkbox options
+    if hasattr(pin, 'prover_options'):
+        for option in pin.prover_options:
+            content += f"  set({option}).\n"
+    
+    content += "end_if.\n\n"
+    
+    # Add Mace4 options
+    content += "if(Mace4).   % Options for Mace4\n"
+    if hasattr(pin, 'max_seconds_mace'):
+        content += f"  assign(max_seconds, {pin.max_seconds_mace}).\n"
+    if hasattr(pin, 'max_megs_mace'):
+        content += f"  assign(max_megs, {pin.max_megs_mace}).\n"
+    if hasattr(pin, 'domain_size'):
+        content += f"  assign(start_size, {pin.domain_size}).\n"
+    if hasattr(pin, 'end_size'):
+        content += f"  assign(end_size, {pin.end_size}).\n"
+    if hasattr(pin, 'max_models'):
+        content += f"  assign(max_models, {pin.max_models}).\n"
+    
+    # Add Mace4 checkbox options
+    if hasattr(pin, 'mace_options'):
+        for option in pin.mace_options:
+            content += f"  set({option}).\n"
+    
+    content += "end_if.\n\n"
+    
+    # Add other language options if selected
+    if hasattr(pin, 'options'):
+        for option in pin.options:
+            content += f"set({option}).\n\n"
+    
+    # Add assumptions, goals and additional content
+    content += "formulas(assumptions).\n"
     content += assumptions + "\n"
     content += "end_of_list.\n\n"
     content += "formulas(goals).\n"
     content += goals + "\n"
-    content += "end_of_list.\n"
+    content += "end_of_list.\n\n"
+    content += additional
     
-    with open(filename, 'w') as f:
-        f.write(content)
-    
-    toast(f"Saved to {filename}")
+    # Provide the file for download instead of saving server-side
+    put_file(filename, content.encode('utf-8'))
+    toast(f"Input file ready for download", color='success')
 
 def generate_input():
     """Generate input for Prover9/Mace4"""
@@ -473,7 +784,55 @@ def generate_input():
     goals = pin.goals
     additional = pin.additional_input if hasattr(pin, 'additional_input') else ""
     
-    content = "formulas(assumptions).\n"
+    # Start with optional settings
+    content = "% Generated by Prover9-Mace4 Web GUI\n\n"
+    content += "set(ignore_option_dependencies). % GUI handles dependencies\n\n"
+    
+    # Add Prover9 options
+    content += "if(Prover9). % Options for Prover9\n"
+    if hasattr(pin, 'max_seconds'):
+        content += f"  assign(max_seconds, {pin.max_seconds}).\n"
+    if hasattr(pin, 'max_megs'):
+        content += f"  assign(max_megs, {pin.max_megs}).\n"
+    
+    # Add search strategy if not auto
+    if hasattr(pin, 'search_strategy') and pin.search_strategy != 'auto':
+        content += f"  set({pin.search_strategy}).\n"
+    
+    # Add Prover9 checkbox options
+    if hasattr(pin, 'prover_options'):
+        for option in pin.prover_options:
+            content += f"  set({option}).\n"
+    
+    content += "end_if.\n\n"
+    
+    # Add Mace4 options
+    content += "if(Mace4).   % Options for Mace4\n"
+    if hasattr(pin, 'max_seconds_mace'):
+        content += f"  assign(max_seconds, {pin.max_seconds_mace}).\n"
+    if hasattr(pin, 'max_megs_mace'):
+        content += f"  assign(max_megs, {pin.max_megs_mace}).\n"
+    if hasattr(pin, 'domain_size'):
+        content += f"  assign(start_size, {pin.domain_size}).\n"
+    if hasattr(pin, 'end_size'):
+        content += f"  assign(end_size, {pin.end_size}).\n"
+    if hasattr(pin, 'max_models'):
+        content += f"  assign(max_models, {pin.max_models}).\n"
+    
+    # Add Mace4 checkbox options
+    if hasattr(pin, 'mace_options'):
+        for option in pin.mace_options:
+            content += f"  set({option}).\n"
+    
+    content += "end_if.\n\n"
+    
+    # Add other language options if selected
+    if hasattr(pin, 'options'):
+        for option in pin.options:
+            content += f"set({option}).\n\n"
+    
+    # Add assumptions, goals and additional content
+    content += "formulas(assumptions).\n"
     content += assumptions + "\n"
     content += "end_of_list.\n\n"
     content += "formulas(goals).\n"
@@ -517,13 +876,9 @@ def run_prover9():
     # Generate input
     input_text = generate_input()
     
-    # Get options
-    max_seconds = pin.max_seconds
-    max_megs = pin.max_megs
-    
-    # Build command
+    # Build command - no longer passing options on command line
     prover9_path = os.path.join(BIN_DIR, 'prover9')
-    command = [prover9_path, f"-t{max_seconds}", f"-m{max_megs}"]
+    command = [prover9_path]
     
     # Start the process
     def run_task():
@@ -665,17 +1020,9 @@ def run_mace4():
     # Generate input
     input_text = generate_input()
     
-    # Get options
-    max_seconds = pin.max_seconds_mace
-    max_megs = pin.max_megs_mace
-    domain_size = pin.domain_size
-    end_size = pin.end_size
-    max_models = pin.max_models
-    
-    # Build command
+    # Build command - no longer passing options via command line
     mace4_path = os.path.join(BIN_DIR, 'mace4')
-    command = [mace4_path, "-c", f"-t{max_seconds}", f"-b{max_megs}", 
-              f"-n{domain_size}", f"-N{end_size}", f"-m{max_models}"]
+    command = [mace4_path, "-c"]  # Keep the -c flag to enable model output
     
     # Start the process
     def run_task():
@@ -996,4 +1343,6 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=8080, help='Port to run the web server on')
     parser.add_argument('--debug', action='store_true', help='Run in debug mode')
     args = parser.parse_args()
+    
+    # Use PyWebIO's start_server directly
     start_server(prover9_mace4_app, port=args.port, debug=args.debug) 
