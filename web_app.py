@@ -14,6 +14,7 @@ import argparse
 import threading
 import signal
 from functools import partial
+from PIL import Image
 
 from pywebio.input import *
 from pywebio.output import *
@@ -194,7 +195,7 @@ def get_mace4_stats(stdout):
     return stats
 
 # Main application function
-@config(theme="dark", title=PROGRAM_NAME)
+@config(theme="yeti", title=PROGRAM_NAME)
 def prover9_mace4_app():
     """Main application function"""
     
@@ -210,7 +211,10 @@ def prover9_mace4_app():
     set_env(output_max_width='90%')
     
     # Header
-    put_html(f"<h1 style='text-align:center'>{BANNER}</h1>")
+    put_row([
+        put_image(Image.open('src/Images/prover9-5a-128t.gif'), format='gif', title=BANNER),
+        put_image(Image.open('src/Images/mace4-90t.gif'), format='gif', title=BANNER)
+    ])
     
     # Create layout with setup and run panels
     put_row([
@@ -245,12 +249,12 @@ def formula_panel():
         put_text("Assumptions:"),
         put_textarea('assumptions', rows=15, code={
             'mode': 'prolog',
-            'theme': 'monokai'
+            #'theme': 'monokai'
         }),
         put_text("Goals:"),
         put_textarea('goals', rows=15, code={
             'mode': 'prolog',
-            'theme': 'monokai'
+            #'theme': 'monokai'
         }),
     ], size="10% 5% 40% 5% 40%")
     
@@ -321,7 +325,7 @@ def additional_input_panel():
     """Panel for additional input"""
     content = put_textarea('additional_input', rows=15, placeholder="Additional input for Prover9 or Mace4...", code={
         'mode': 'prolog',
-        'theme': 'monokai'
+        #'theme': 'monokai'
     })
     
     return content
@@ -350,7 +354,7 @@ def prover9_run_panel():
                 put_html('<span id="prover9_status" style="color: green;">Idle</span>'),
             ]),
             put_text("Proof Search:"),
-            put_scrollable(put_textarea('prover9_output', rows=10, readonly=True), height=160),
+            put_textarea('prover9_output', rows=5, readonly=True),#put_scrollable(),
             put_text("Statistics:"),
             put_html('<div id="prover9_stats"></div>')
         ], size='10% 5% 40% 5% 40%')
@@ -368,7 +372,7 @@ def mace4_run_panel():
                 put_html('<span id="mace4_status" style="color: green;">Idle</span>'),
             ]),
             put_text("Model Search:"),
-            put_scrollable(put_textarea('mace4_output', rows=10, readonly=True), height=160),
+            put_textarea('mace4_output', rows=5, readonly=True),#put_scrollable(),
             put_text("Statistics:"),
             put_html('<div id="mace4_stats"></div>')
         ], size='10% 5% 40% 5% 40%')
