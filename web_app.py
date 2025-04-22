@@ -196,133 +196,132 @@ def prover9_mace4_app():
     
     # Create layout with setup and run panels
     put_row([
-        setup_panel(),
-        run_panel()
-    ],size='70% 30%')
+        put_scope('setup_panel'),
+        put_scope('run_panel')
+    ], size='70% 30%')
+    
+    # Populate the panels
+    setup_panel()
+    run_panel()
 
 def setup_panel():
     """Setup panel with formula input and options"""
-    return put_tabs([
-        {'title': 'Formulas', 'content': formula_panel()},
-        {'title': 'Language Options', 'content': language_options_panel()},
-        {'title': 'Prover9 Options', 'content': prover9_options_panel()},
-        {'title': 'Mace4 Options', 'content': mace4_options_panel()},
-        {'title': 'Additional Input', 'content': additional_input_panel()},
-    ])
+    with use_scope('setup_panel', clear=True):
+        put_tabs([
+            {'title': 'Formulas', 'content': formula_panel()},
+            {'title': 'Language Options', 'content': language_options_panel()},
+            {'title': 'Prover9 Options', 'content': prover9_options_panel()},
+            {'title': 'Mace4 Options', 'content': mace4_options_panel()},
+            {'title': 'Additional Input', 'content': additional_input_panel()},
+        ])
 
 def formula_panel():
     """Panel for entering assumptions and goals"""
-    put_scope('formula_panel')
+    content = put_column([
+        put_row([
+            put_button("Load Sample", onclick=load_sample),
+            put_button("Load File", onclick=load_file),
+            put_button("Save Input", onclick=save_input),
+            put_button("Clear", onclick=lambda: [pin_update('assumptions', value=''), pin_update('goals', value='')]),
+        ]),
+        put_text("Assumptions:"),
+        put_textarea('assumptions', rows=15, code={
+            'mode': 'prolog',
+            'theme': 'monokai'
+        }),
+        put_text("Goals:"),
+        put_textarea('goals', rows=15, code={
+            'mode': 'prolog',
+            'theme': 'monokai'
+        }),
+    ], size="10% 5% 40% 5% 40%")
     
-    with use_scope('formula_panel', clear=True):
-        return put_column([
-            put_row([
-                put_button("Load Sample", onclick=load_sample),
-                put_button("Save Input", onclick=save_input),
-                put_button("Clear", onclick=lambda: [pin_update('assumptions', value=''), pin_update('goals', value='')]),
-            ]),
-            put_text("Assumptions:"),
-            put_textarea('assumptions', rows=15, code={
-                'mode': 'prolog',
-                'theme': 'monokai'
-            }),
-            put_text("Goals:"),
-            put_textarea('goals', rows=15, code={
-                'mode': 'prolog',
-                'theme': 'monokai'
-            }),
-        ],size="10% 5% 40%  5% 40%")
+    return content
 
 def language_options_panel():
     """Panel for language options"""
-    put_scope('language_options_panel')
+    content = put_row([
+        put_checkbox('options', options=[
+            {'label': 'Auto2', 'value': 'auto2'},
+            {'label': 'Equality', 'value': 'equality'},
+            {'label': 'Function Style', 'value': 'function_style'}
+        ]),
+    ])
     
-    with use_scope('language_options_panel', clear=True):
-        return put_row([
-            put_checkbox('options', options=[
-                {'label': 'Auto2', 'value': 'auto2'},
-                {'label': 'Equality', 'value': 'equality'},
-                {'label': 'Function Style', 'value': 'function_style'}
-            ]),
-        ])
+    return content
 
 def prover9_options_panel():
     """Panel for Prover9 options"""
-    put_scope('prover9_options_panel')
+    content = put_row([
+        put_column([
+            put_text("Basic Options:"),
+            put_input('max_seconds', label='Max Seconds', type=NUMBER, value=60),
+            put_input('max_megs', label='Max Memory (MB)', type=NUMBER, value=500),
+            put_select('search_strategy', label='Search Strategy', options=[
+                {'label': 'Auto', 'value': 'auto'},
+                {'label': 'Breadth First', 'value': 'breadth_first'},
+                {'label': 'Depth First', 'value': 'depth_first'},
+                {'label': 'Iterative Depth First', 'value': 'iterative_depth_first'}
+            ], value='auto')
+        ], size='1/2'),
+        put_column([
+            put_text("Advanced Options:"),
+            put_checkbox('prover_options', options=[
+                {'label': 'Build Models', 'value': 'build_models'},
+                {'label': 'Print Kept Clauses', 'value': 'print_kept'},
+                {'label': 'Print Given Clauses', 'value': 'print_given'}
+            ]),
+        ], size='1/2')
+    ])
     
-    with use_scope('prover9_options_panel', clear=True):
-        return put_row([
-            put_column([
-                put_text("Basic Options:"),
-                put_input('max_seconds', label='Max Seconds', type=NUMBER, value=60),
-                put_input('max_megs', label='Max Memory (MB)', type=NUMBER, value=500),
-                put_select('search_strategy', label='Search Strategy', options=[
-                    {'label': 'Auto', 'value': 'auto'},
-                    {'label': 'Breadth First', 'value': 'breadth_first'},
-                    {'label': 'Depth First', 'value': 'depth_first'},
-                    {'label': 'Iterative Depth First', 'value': 'iterative_depth_first'}
-                ], value='auto')
-            ], size='1/2'),
-            put_column([
-                put_text("Advanced Options:"),
-                put_checkbox('prover_options', options=[
-                    {'label': 'Build Models', 'value': 'build_models'},
-                    {'label': 'Print Kept Clauses', 'value': 'print_kept'},
-                    {'label': 'Print Given Clauses', 'value': 'print_given'}
-                ]),
-            ], size='1/2')
-        ])
+    return content
 
 def mace4_options_panel():
     """Panel for Mace4 options"""
-    put_scope('mace4_options_panel')
+    content = put_row([
+        put_column([
+            put_text("Basic Options:"),
+            put_input('max_seconds_mace', label='Max Seconds', type=NUMBER, value=60),
+            put_input('max_megs_mace', label='Max Memory (MB)', type=NUMBER, value=500),
+            put_input('domain_size', label='Start Size', type=NUMBER, value=2),
+            put_input('end_size', label='End Size', type=NUMBER, value=10)
+        ], size='1/2'),
+        put_column([
+            put_text("Advanced Options:"),
+            put_checkbox('mace_options', options=[
+                {'label': 'Print Models', 'value': 'print_models'},
+                {'label': 'Print Models Portable', 'value': 'print_models_portable'},
+                {'label': 'Iterate', 'value': 'iterate'}
+            ]),
+        ], size='1/2')
+    ])
     
-    with use_scope('mace4_options_panel', clear=True):
-        return put_row([
-            put_column([
-                put_text("Basic Options:"),
-                put_input('max_seconds_mace', label='Max Seconds', type=NUMBER, value=60),
-                put_input('max_megs_mace', label='Max Memory (MB)', type=NUMBER, value=500),
-                put_input('domain_size', label='Start Size', type=NUMBER, value=2),
-                put_input('end_size', label='End Size', type=NUMBER, value=10)
-            ], size='1/2'),
-            put_column([
-                put_text("Advanced Options:"),
-                put_checkbox('mace_options', options=[
-                    {'label': 'Print Models', 'value': 'print_models'},
-                    {'label': 'Print Models Portable', 'value': 'print_models_portable'},
-                    {'label': 'Iterate', 'value': 'iterate'}
-                ]),
-            ], size='1/2')
-        ])
+    return content
 
 def additional_input_panel():
     """Panel for additional input"""
-    put_scope('additional_input_panel')
+    content = put_textarea('additional_input', rows=15, placeholder="Additional input for Prover9 or Mace4...", code={
+        'mode': 'prolog',
+        'theme': 'monokai'
+    })
     
-    with use_scope('additional_input_panel', clear=True):
-        return put_textarea('additional_input', rows=15, placeholder="Additional input for Prover9 or Mace4...", code={
-            'mode': 'prolog',
-            'theme': 'monokai'
-        })
+    return content
 
 def run_panel():
     """Run panel with controls and output display"""
-    put_scope('run_panel')
-    
     with use_scope('run_panel', clear=True):
-        # Create tabs for Prover9 and Mace4
-        return put_column([
-            prover9_run_panel(), #TODO add label
-            mace4_run_panel() #TODO add label
-        ],size='40vh 40vh')
+        put_column([
+            put_scope('prover9_run_panel'),
+            put_scope('mace4_run_panel')
+        ], size='40vh 40vh')
+        
+        prover9_run_panel()
+        mace4_run_panel()
 
 def prover9_run_panel():
     """Run panel for Prover9"""
-    put_scope('prover9_run')
-    
-    with use_scope('prover9_run', clear=True):
-        return put_column([
+    with use_scope('prover9_run_panel', clear=True):
+        put_column([
             put_row([
                 put_button("Start Prover9", onclick=run_prover9, color='primary'),
                 put_button("Kill", onclick=lambda: kill_process('prover9'), color='danger'),
@@ -334,14 +333,12 @@ def prover9_run_panel():
             put_scrollable(put_textarea('prover9_output', rows=10, readonly=True), height=160),
             put_text("Statistics:"),
             put_html('<div id="prover9_stats"></div>')
-        ],size='10% 5% 40%  5% 40%')
+        ], size='10% 5% 40% 5% 40%')
 
 def mace4_run_panel():
     """Run panel for Mace4"""
-    put_scope('mace4_run')
-    
-    with use_scope('mace4_run', clear=True):
-        return put_column([
+    with use_scope('mace4_run_panel', clear=True):
+        put_column([
             put_row([
                 put_button("Start Mace4", onclick=run_mace4, color='primary'),
                 put_button("Kill", onclick=lambda: kill_process('mace4'), color='danger'),
@@ -353,7 +350,7 @@ def mace4_run_panel():
             put_scrollable(put_textarea('mace4_output', rows=10, readonly=True), height=160),
             put_text("Statistics:"),
             put_html('<div id="mace4_stats"></div>')
-        ],size='10% 5% 40%  5% 40%')
+        ], size='10% 5% 40% 5% 40%')
 
 # Event handlers
 def load_sample():
@@ -389,6 +386,42 @@ def load_sample():
     
     pin_update('assumptions', value=assumptions)
     pin_update('goals', value=goals)
+
+def load_file():
+    """Load input from a user-uploaded file"""
+    uploaded = file_upload("Select an input file", accept=".in,.txt")
+    if not uploaded:
+        return
+    
+    # Read file content
+    content = uploaded['content'].decode('utf-8')
+    
+    # Parse the uploaded file to extract assumptions and goals
+    assumptions = ""
+    goals = ""
+    section = None
+    
+    for line in content.splitlines():
+        if "formulas(assumptions)." in line:
+            section = "assumptions"
+            continue
+        elif "formulas(goals)." in line:
+            section = "goals"
+            continue
+        elif "end_of_list." in line:
+            section = None
+            continue
+        
+        if section == "assumptions":
+            assumptions += line + "\n"
+        elif section == "goals":
+            goals += line + "\n"
+    
+    # Update the text areas
+    pin_update('assumptions', value=assumptions)
+    pin_update('goals', value=goals)
+    
+    toast(f"File '{uploaded['filename']}' loaded successfully", color='success')
 
 def save_input():
     """Save the current input to a file"""
@@ -439,8 +472,8 @@ def run_prover9():
     run_js('document.getElementById("prover9_status").style.color = "orange"')
     
     # Disable start button, enable kill button
-    with use_scope('prover9_run'):
-        clear('prover9_run')
+    with use_scope('prover9_run_panel'):
+        clear('prover9_run_panel')
         put_column([
             put_row([
                 put_button("Start Prover9", onclick=run_prover9, color='primary', disabled=True),
@@ -453,7 +486,7 @@ def run_prover9():
             put_scrollable(put_textarea('prover9_output', rows=10, readonly=True), height=160),
             put_text("Statistics:"),
             put_html('<div id="prover9_stats">Waiting for statistics...</div>')
-        ],size='10% 5% 40%  5% 40%')
+        ], size='10% 5% 40% 5% 40%')
     
     # Generate input
     input_text = generate_input()
@@ -541,8 +574,8 @@ def run_prover9():
             run_js('document.getElementById("prover9_stats").innerHTML = `' + stats_html + '`')
             
             # Update button state - enable start, disable kill
-            with use_scope('prover9_run'):
-                clear('prover9_run')
+            with use_scope('prover9_run_panel'):
+                clear('prover9_run_panel')
                 put_column([
                     put_row([
                         put_button("Start Prover9", onclick=run_prover9, color='primary'),
@@ -555,7 +588,7 @@ def run_prover9():
                     put_scrollable(put_textarea('prover9_output', rows=10, readonly=True, value=f"{result_header}{output}"), height=160),
                     put_text("Statistics:"),
                     put_html(f'<div id="prover9_stats">{stats_html}</div>')
-                ],size='10% 5% 40%  5% 40%')
+                ], size='10% 5% 40% 5% 40%')
                 
         finally:
             # Close file handles
@@ -585,8 +618,8 @@ def run_mace4():
     run_js('document.getElementById("mace4_status").style.color = "orange"')
     
     # Disable start button, enable kill button
-    with use_scope('mace4_run'):
-        clear('mace4_run')
+    with use_scope('mace4_run_panel'):
+        clear('mace4_run_panel')
         put_column([
             put_row([
                 put_button("Start Mace4", onclick=run_mace4, color='primary', disabled=True),
@@ -599,7 +632,7 @@ def run_mace4():
             put_scrollable(put_textarea('mace4_output', rows=10, readonly=True), height=160),
             put_text("Statistics:"),
             put_html('<div id="mace4_stats">Waiting for statistics...</div>')
-        ],size='10% 5% 40%  5% 40%')
+        ], size='10% 5% 40% 5% 40%')
     
     # Generate input
     input_text = generate_input()
@@ -690,8 +723,8 @@ def run_mace4():
             run_js('document.getElementById("mace4_stats").innerHTML = `' + stats_html + '`')
             
             # Update button state - enable start, disable kill
-            with use_scope('mace4_run'):
-                clear('mace4_run')
+            with use_scope('mace4_run_panel'):
+                clear('mace4_run_panel')
                 put_column([
                     put_row([
                         put_button("Start Mace4", onclick=run_mace4, color='primary'),
@@ -704,7 +737,7 @@ def run_mace4():
                     put_scrollable(put_textarea('mace4_output', rows=10, readonly=True, value=f"{result_header}{output}"), height=160),
                     put_text("Statistics:"),
                     put_html(f'<div id="mace4_stats">{stats_html}</div>')
-                ],size='10% 5% 40%  5% 40%')
+                ], size='10% 5% 40% 5% 40%')
         finally:
             # Close file handles
             fin.close()
