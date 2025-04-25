@@ -1176,6 +1176,10 @@ def syntax_check(input):
         elif exit_code != 1:  # Fatal error
             return ('Okay', None, None)
         else:
+            # Ensure output is a string, not bytes
+            if isinstance(output, bytes):
+                output = output.decode('utf-8', errors='replace')
+                
             if re.search('%%ERROR', output):
                 r = re.compile('(?<=%%ERROR: ).*')
                 m = r.search(output)
