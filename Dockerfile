@@ -1,27 +1,32 @@
 FROM python:3.9-slim
 
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
+# Copy requirements first to leverage Docker cache
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
-COPY src/ /app/src/
-COPY web_app.py .
-COPY flask_app.py .
+COPY . .
 
-# Make sure the binaries are executable
-RUN chmod +x /app/src/bin/*
-
-# Create a directory for saved files
-RUN mkdir -p /app/saved
-
-# Expose the port
-EXPOSE 8080
+# Create directories for Prover9-Mace4
+RUN mkdir -p /app/src/bin
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV PATH="/app/src/bin:${PATH}"
 
-# Run the application with Flask in production mode for better performance
-CMD ["python", "flask_app.py", "--port", "8080", "--production"] 
+# Expose ports
+EXPOSE 8000  # FastAPI server
+EXPOSE 8080  # Web GUI
+
+# Default command (can be overridden)
+CMD ["python", "api_server.py"] 

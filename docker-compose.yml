@@ -1,18 +1,38 @@
-version: '3'
+version: '3.8'
 
 services:
-  prover9-mace4-web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      # Use BuildKit for building
-      args:
-        BUILDKIT_INLINE_CACHE: 1
+  api:
+    build: .
+    command: python api_server.py
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src/bin:/app/src/bin
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped
+
+  web:
+    build: .
+    command: python web_app.py --port 8080 --production
     ports:
       - "8080:8080"
-    restart: unless-stopped
     volumes:
-      # Mount a local directory for saving files
-      - ./saved:/app/saved
+      - ./src/bin:/app/src/bin
     environment:
-      - PYTHONUNBUFFERED=1 
+      - PYTHONPATH=/app
+      - PROVER9_API_URL=http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api-only:
+    build: .
+    command: python api_server.py
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./src/bin:/app/src/bin
+    environment:
+      - PYTHONPATH=/app
+    restart: unless-stopped 
