@@ -52,11 +52,14 @@ MACE4_FORMATS = [
 # Utility functions
 def get_api_url() -> str:
     """Get the API URL from session or use default"""
-    return get_session_info().get(API_URL_KEY, API_URL)
+    if API_URL_KEY in local:
+        return local[API_URL_KEY]
+    else:
+        return API_URL
 
 def set_api_url(url: str) -> None:
     """Set the API URL in session"""
-    set_session_info({API_URL_KEY: url})
+    local[API_URL_KEY] = url
 
 def format_duration(seconds: float) -> str:
     """Format duration in seconds to human readable string"""
