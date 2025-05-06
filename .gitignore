@@ -8,3 +8,4 @@ src/venv/
 src/bin/
 venv/
 .env
+*.code-workspace
