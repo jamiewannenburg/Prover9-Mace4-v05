@@ -15,6 +15,12 @@ import threading
 import signal
 from functools import partial
 from PIL import Image
+import pyparsing as pp
+from pyparsing import (
+    Word, alphas, alphanums, Literal, Group, Optional, 
+    OneOrMore, ZeroOrMore, ParseException, restOfLine,
+    QuotedString, delimitedList, ParseResults, Regex, Keyword, OneOrMore, printables
+)
 
 from pywebio.input import *
 from pywebio.output import *
@@ -92,39 +98,38 @@ def binary_ok(fullpath):
     return os.path.isfile(fullpath) and os.access(fullpath, os.X_OK)
 
 def run_command(command, input_text='', callback=None):
-    """Run a command and return the process object"""
+    """Print the command and input that would be executed"""
     if isinstance(input_text, str):
         input_text = input_text.encode('utf-8')
     
-    fin = tempfile.TemporaryFile('w+b')
-    fout = tempfile.TemporaryFile('w+b')
-    ferr = tempfile.TemporaryFile('w+b')
+    # Print the command that would be executed
+    print("Command:", " ".join(command))
+    print("\nInput text:")
+    print(input_text.decode('utf-8'))
+    print("\n" + "="*80 + "\n")
     
-    if input_text:
-        fin.write(input_text)
-        fin.seek(0)
+    # Return dummy values to maintain compatibility
+    class DummyProcess:
+        def poll(self): return 0
+        def terminate(self): pass
+        def send_signal(self, sig): pass
     
-    process = subprocess.Popen(command, stdin=fin, stdout=fout, stderr=ferr)
-    
-    return process, fin, fout, ferr
+    return DummyProcess(), None, None, None
 
 def get_process_output(fout, ferr):
     """Get output from process file handles"""
-    fout.seek(0)
-    output = fout.read().decode('utf-8', errors='replace')
-    
-    ferr.seek(0)
-    error = ferr.read().decode('utf-8', errors='replace')
-    
-    return output, error
+    # Since we're not actually running the process, return empty strings
+    return "", ""
 
 def list_samples():
     """List sample files in the Samples directory"""
     samples = []
     if os.path.isdir(SAMPLE_DIR):
-        for file in os.listdir(SAMPLE_DIR):
-            if file.endswith('.in'):
-                samples.append(file)
+        # recursively list all .in files in the Samples directory
+        for root, dirs, files in os.walk(SAMPLE_DIR):
+            for file in files:
+                if file.endswith('.in'):
+                    samples.append(os.path.join(root, file))
     return sorted(samples)
 
 def read_sample(filename):
@@ -135,70 +140,12 @@ def read_sample(filename):
             return f.read()
     return ""
 
-def get_prover9_stats(stdout):
-    """Extract statistics from prover9 stdout output"""
-    stats = []
-    
-    # Extract CPU time
-    match = re.search(r'User_CPU=(\d*\.\d*)', stdout)
-    if match:
-        stats.append(('CPU Time', f"{match.group(1)} seconds"))
-    else:
-        stats.append(('CPU Time', "?"))
-    
-    # Extract clause counts
-    # Look for line like: "Given=67. Generated=519. Kept=169."
-    match = re.search(r'Given=(\d+)\.\s+Generated=(\d+)\.\s+Kept=(\d+)', stdout)
-    if match:
-        stats.append(('Given', match.group(1)))
-        stats.append(('Generated', match.group(2)))
-        stats.append(('Kept', match.group(3)))
-    else:
-        stats.append(('Given', "?"))
-        stats.append(('Generated', "?"))
-        stats.append(('Kept', "?"))
-    
-    # Extract proof count
-    match = re.search(r'proofs=(\d+)', stdout)
-    if match:
-        stats.append(('Proofs', match.group(1)))
-    else:
-        stats.append(('Proofs', "?"))
-    
-    return stats
-
-def get_mace4_stats(stdout):
-    """Extract statistics from mace4 stdout output"""
-    stats = []
-    
-    # Extract domain size from the last domain size section
-    domain_size_matches = re.findall(r'============================== DOMAIN SIZE (\d+) =========================', stdout)
-    if domain_size_matches:
-        stats.append(('Domain Size', domain_size_matches[-1]))  # Get the last one
-    else:
-        stats.append(('Domain Size', "?"))
-    
-    # Extract model count
-    match = re.search(r'Exiting with (\d+) model', stdout)
-    if match:
-        stats.append(('Models', match.group(1)))
-    else:
-        stats.append(('Models', "?"))
-    
-    # Extract CPU time
-    match = re.search(r'User_CPU=(\d*\.\d*)', stdout)
-    if match:
-        stats.append(('CPU Time', f"{match.group(1)} seconds"))
-    else:
-        stats.append(('CPU Time', "?"))
-    
-    return stats
-
 # Main application function
 @config(theme="yeti", title=PROGRAM_NAME)
 def prover9_mace4_app():
     """Main application function"""
     
+    #TODO change for fastapi backend
     # Check if Prover9 and Mace4 binaries exist
     prover9_path = os.path.join(BIN_DIR, 'prover9')
     mace4_path = os.path.join(BIN_DIR, 'mace4')
@@ -209,13 +156,7 @@ def prover9_mace4_app():
         return
     
     set_env(output_max_width='90%')
-    
-    # Header
-    put_row([
-        put_image(Image.open('src/Images/prover9-5a-128t.gif'), format='gif', title=BANNER),
-        put_image(Image.open('src/Images/mace4-90t.gif'), format='gif', title=BANNER)
-    ])
-    
+
     # Create layout with setup and run panels
     put_row([
         put_scope('setup_panel'),
@@ -272,60 +213,89 @@ def formula_panel():
 def language_options_panel():
     """Panel for language options"""
     content = put_row([
-        put_checkbox('options', options=[
-            {'label': 'Auto2', 'value': 'auto2'},
-            {'label': 'Equality', 'value': 'equality'},
-            {'label': 'Function Style', 'value': 'function_style'}
+        put_checkbox('language_flags', options=[
+            {'label': 'Prolog-Style Variables', 'value': 'prolog_style_variables'}
         ]),
+        put_text("Language Options:"),
+        put_textarea('language_options', rows=15, code={
+            'mode': 'prolog',
+            #'theme': 'monokai'
+        }),
     ])
     
     return content
+
+PROVER9_PARAMS = [
+    'prover9_max_seconds',
+    'prover9_max_weight',
+    'prover9_pick_given_ratio',
+    'prover9_order',
+    'prover9_eq_defs',
+]
+
+PROVER9_FLAGS = [
+    'expand_relational_defs',
+    'restrict_denials',
+]
 
 def prover9_options_panel():
     """Panel for Prover9 options"""
     content = put_row([
         put_column([
             put_text("Basic Options:"),
-            put_input('max_seconds', label='Max Seconds', type=NUMBER, value=60),
-            put_input('max_megs', label='Max Memory (MB)', type=NUMBER, value=500),
-            put_select('search_strategy', label='Search Strategy', options=[
-                {'label': 'Auto', 'value': 'auto'},
-                {'label': 'Breadth First', 'value': 'breadth_first'},
-                {'label': 'Depth First', 'value': 'depth_first'},
-                {'label': 'Iterative Depth First', 'value': 'iterative_depth_first'}
-            ], value='auto')
+            put_input('prover9_max_seconds', label='Max Seconds', type=NUMBER, value=120),
+            put_input('prover9_max_weight', label='Max Weight', type=NUMBER, value=100),
+            put_input('prover9_pick_given_ratio', label='Pick Given Ratio', type=NUMBER, value=-1),
+            put_select('prover9_order', label='Order', options=['lpo','rpo','kb'], value='lpo'),
+            put_select('prover9_eq_defs', label='Equality Defs', options=['unfold','fold','pass'], value='unfold'),
+            put_checkbox('prover9_basic_flags', label='Prover9 Flags', options=['expand_relational_defs','restrict_denials'], value=False),
         ], size='1/2'),
-        put_column([
-            put_text("Advanced Options:"),
-            put_checkbox('prover_options', options=[
-                {'label': 'Build Models', 'value': 'build_models'},
-                {'label': 'Print Kept Clauses', 'value': 'print_kept'},
-                {'label': 'Print Given Clauses', 'value': 'print_given'}
-            ]),
-        ], size='1/2')
+        # TODO Advanced Options, to many for now
     ])
     
     return content
+
+MACE4_PARAMS = [
+    'mace4_max_seconds',
+    'mace4_start_size',
+    'mace4_end_size',
+    'mace4_max_models',
+    'mace4_max_seconds_per_model',
+    'mace4_increment',
+    'mace4_iterate',
+]
+
+MACE4_FLAGS = [
+]
 
 def mace4_options_panel():
     """Panel for Mace4 options"""
     content = put_row([
         put_column([
             put_text("Basic Options:"),
-            put_input('max_seconds_mace', label='Max Seconds', type=NUMBER, value=60),
-            put_input('max_megs_mace', label='Max Memory (MB)', type=NUMBER, value=500),
-            put_input('domain_size', label='Start Size', type=NUMBER, value=2),
-            put_input('end_size', label='End Size', type=NUMBER, value=10),
-            put_input('max_models', label='Max Models', type=NUMBER, value=1)
-        ], size='1/2'),
-        put_column([
-            put_text("Advanced Options:"),
-            put_checkbox('mace_options', options=[
-                {'label': 'Print Models', 'value': 'print_models'},
-                {'label': 'Print Models Portable', 'value': 'print_models_portable'},
-                {'label': 'Iterate', 'value': 'iterate'}
-            ]),
-        ], size='1/2')
+            put_input('mace4_max_seconds', label='Max Seconds', type=NUMBER, value=60),
+            put_input('mace4_start_size', label='Start Size', type=NUMBER, value=2),
+            put_input('mace4_end_size', label='End Size', type=NUMBER, value=10),
+            put_input('mace4_max_models', label='Max Models', type=NUMBER, value=1),
+            put_input('mace4_max_seconds_per_model', label='Max Seconds Per Model', type=NUMBER, value=-1),
+            put_input('mace4_increment', label='Increment', type=NUMBER, value=1),
+            put_select('mace4_iterate', label='Iterate', options=['all','evens','odds','primes','nonprimes'], value='all'),
+
+        ]),
+        # put_column([
+        #     put_text("Experimental Options:"),
+        #     put_checkbox('mace4_experimental_flags', options=[
+        #         'lnh','negprop','neg_assign','neg_assign_near','neg_elim','neg_elim_near'
+        #     ],value=True),
+        #     put_input('mace4_selection_order', label='Selection Order', type=NUMBER, value=2),
+        #     put_input('mace4_selection_measure', label='Selection Measure', type=NUMBER, value=4),
+        # ]),
+        # put_column([
+        #     put_text("Other Options:"),
+        #     put_input('mace4_max_megs', label='Max Memory (MB)', type=NUMBER, value=200),
+        #     put_checkbox('mace4_other_flags', label='Other Mace4 Options', options=['integer_ring','skolems_last','print_models'], value=False),
+        # ]),
+        
     ])
     
     return content
@@ -343,48 +313,231 @@ def run_panel():
     """Run panel with controls and output display"""
     with use_scope('run_panel', clear=True):
         put_column([
-            put_scope('prover9_run_panel'),
-            put_scope('mace4_run_panel')
-        ], size='40vh 40vh')
+            put_image(Image.open('src/Images/prover9-5a-128t.gif'), format='gif', title=BANNER),
+            put_button("Start", onclick=run_prover9, color='primary'),
+            None,
+            put_image(Image.open('src/Images/mace4-90t.gif'), format='gif', title=BANNER),
+            put_button("Start", onclick=run_mace4, color='primary'),
+
+        ])
         
-        prover9_run_panel()
-        mace4_run_panel()
 
-def prover9_run_panel():
-    """Run panel for Prover9"""
-    with use_scope('prover9_run_panel', clear=True):
-        put_column([
-            put_row([
-                put_button("Start Prover9", onclick=run_prover9, color='primary'),
-                put_button("Kill", onclick=lambda: kill_process('prover9'), color='danger'),
-                put_button("Save Output", onclick=save_prover9_output, color='success'),
-                None,  # Spacer
-                put_text("Status:"),
-                put_html('<span id="prover9_status" style="color: green;">Idle</span>'),
-            ]),
-            put_text("Proof Search:"),
-            put_textarea('prover9_output', rows=5, readonly=True),#put_scrollable(),
-            put_text("Statistics:"),
-            put_html('<div id="prover9_stats"></div>')
-        ], size='10% 5% 40% 5% 40%')
+def parse_file(content):
+    """Parse the input file to extract assumptions, goals, and options using pyparsing"""
+    # Define basic tokens
+    period = Literal(".")
+    identifier = Word(alphanums+"_")
+    quoted_string = QuotedString('"', escChar='\\')
+    
+    # Define comment
+    comment = Group(Literal("%") + restOfLine)
+    
+    # Define option patterns
+    set_option = Group(Literal("set")+ Literal("(").suppress() + (identifier | quoted_string) + Literal(")").suppress() + period)+Optional(comment)
+    clear_option = Group(Literal("clear")+ Literal("(").suppress() + (identifier | quoted_string) + Literal(")").suppress() + period)+Optional(comment)
+    assign_option = Group(Literal("assign")+ Literal("(").suppress() + (identifier | quoted_string) + Literal(",").suppress() + (Word(alphanums+"_"+'-') | quoted_string) + Literal(")").suppress() + period)+Optional(comment)
+    language_option = Group(Literal("op")+ Literal("(").suppress() + (identifier | quoted_string) + ZeroOrMore(Literal(",").suppress() + (Word(alphanums+"_"+'-') | quoted_string)) + Literal(")").suppress() + period)+Optional(comment)
 
-def mace4_run_panel():
-    """Run panel for Mace4"""
-    with use_scope('mace4_run_panel', clear=True):
-        put_column([
-            put_row([
-                put_button("Start Mace4", onclick=run_mace4, color='primary'),
-                put_button("Kill", onclick=lambda: kill_process('mace4'), color='danger'),
-                put_button("Save Output", onclick=save_mace4_output, color='success'),
-                None,  # Spacer
-                put_text("Status:"),
-                put_html('<span id="mace4_status" style="color: green;">Idle</span>'),
-            ]),
-            put_text("Model Search:"),
-            put_textarea('mace4_output', rows=5, readonly=True),#put_scrollable(),
-            put_text("Statistics:"),
-            put_html('<div id="mace4_stats"></div>')
-        ], size='10% 5% 40% 5% 40%')
+    # Define section markers
+    formulas_assumptions = Group(Literal("formulas(assumptions)") + period)+Optional(comment)
+    formulas_goals = Group(Literal("formulas(goals)") + period)+Optional(comment)
+    end_of_list = Group(Literal("end_of_list") + period)+Optional(comment)
+    
+    # Define program blocks
+    if_prover9 = Group(Literal("if(Prover9)") + period)+Optional(comment)
+    if_mace4 = Group(Literal("if(Mace4)") + period)+Optional(comment)
+    end_if = Group(Literal("end_if") + period)+Optional(comment)
+    
+    # Define formula (anything ending with period, excluding comments and special markers)
+    formula =  Group(~(end_of_list)+Word(printables)+restOfLine) #| if_prover9 | if_mace4 | end_if formulas_assumptions | formulas_goals |
+    
+    # Define sections
+    assumptions_section = formulas_assumptions + ZeroOrMore(formula, stop_on=end_of_list) + end_of_list
+    goals_section = formulas_goals + ZeroOrMore(formula, stop_on=end_of_list) + end_of_list
+    
+    # Define program blocks
+    prover9_block = if_prover9 + ZeroOrMore(set_option | assign_option | clear_option) + end_if
+    mace4_block = if_mace4 + ZeroOrMore(set_option | assign_option | clear_option) + end_if
+    
+    # Define global options
+    global_options = ZeroOrMore(set_option | assign_option | clear_option)
+    
+    # Define the complete grammar 
+    grammar = Optional(ZeroOrMore(comment)) + Optional(global_options) + Optional(ZeroOrMore(comment)) + Optional(ZeroOrMore(language_option)) + Optional(ZeroOrMore(comment)) + Optional(prover9_block) + Optional(ZeroOrMore(comment)) + Optional(mace4_block) + Optional(ZeroOrMore(comment)) + Optional(assumptions_section) + Optional(ZeroOrMore(comment)) + Optional(goals_section)
+    
+    # TODO: leave room for additional input
+
+    # Parse the content
+    try:
+        result = grammar.parseString(content)
+    except ParseException as e:
+        print(f"Parse error: {e}")
+        toast("Parse error: " + str(e), color='danger')
+        return {
+            'assumptions': '',
+            'goals': '',
+            'prover9_options': set(),
+            'mace4_options': set(),
+            'global_options': set(),
+            'global_assigns': {},
+            'language_options': set(),
+            'prover9_assigns': {},
+            'mace4_assigns': {}
+        }
+    
+    # Initialize result containers
+    parsed = {
+        'assumptions': '',
+        'goals': '',
+        'prover9_options': set(),
+        'mace4_options': set(),
+        'language_options': set(),
+        'global_options': set(),
+        'global_assigns': {},
+        'prover9_assigns': {},
+        'mace4_assigns': {}
+    }
+    
+    # Process the parsed results
+    current_section = None
+    current_program = None
+    
+    for item in result:
+        if item[0] == "formulas(assumptions)":
+            current_section = "assumptions"
+        elif item[0] == "formulas(goals)":
+            current_section = "goals"
+        elif item[0] == "end_of_list":
+            current_section = None
+        elif item[0] == "if(Prover9)":
+            current_program = "prover9"
+        elif item[0] == "if(Mace4)":
+            current_program = "mace4"
+        elif item[0] == "end_if":
+            current_program = None
+        elif item[0] == "set":
+            option = item[1]
+            if current_program == "prover9":
+                parsed['prover9_options'].add((option, True))
+            elif current_program == "mace4":
+                parsed['mace4_options'].add((option, True))
+            else:
+                parsed['global_options'].add((option, True))
+        elif item[0] == "clear":
+            option = item[1]
+            if current_program == "prover9":
+                parsed['prover9_options'].add((option, False))
+            elif current_program == "mace4":
+                parsed['mace4_options'].add((option, False))
+            else:
+                parsed['global_options'].add((option, False))
+        elif item[0] == "assign":
+            option_name = item[1]
+            option_value = item[2]
+            if current_program == "prover9":
+                parsed['prover9_assigns'][option_name] = option_value
+            elif current_program == "mace4":
+                parsed['mace4_assigns'][option_name] = option_value
+            else:
+                parsed['global_assigns'][option_name] = option_value
+        elif item[0] == "op":
+            parsed['language_options'].add(item[1:])
+        elif current_section == "assumptions":
+            # concatenate the item list to a string
+            parsed['assumptions'] += ''.join(item)+'\n'
+        elif current_section == "goals":
+            parsed['goals'] += ''.join(item)+'\n'
+    return parsed
+
+def update_options(parsed):
+    print(parsed)
+    # Update the text areas
+    pin_update('assumptions', value=parsed['assumptions'])
+    pin_update('goals', value=parsed['goals'])
+
+
+    # Update language options
+    language_input = ""
+    for item in parsed['language_options']:
+        language_input += "op(" + ', '.join(item) + ").\n"
+    pin_update('language_options', value=language_input)
+
+    additional_input = ""
+    
+    # Update global options
+    for name in parsed['global_assigns']:
+        if name == "domain_size":
+            pin_update('mace4_start_size', value=int(parsed['global_assigns'][name]))
+            pin_update('mace4_end_size', value=int(parsed['global_assigns'][name]))
+        else:
+            additional_input += f"assign({name}, {parsed['global_assigns'][name]}).\n"
+    for name, value in parsed['global_options']:
+        if name == "prolog_style_variables":
+            if value:
+                pin_update('language_flags', value=['prolog_style_variables'])
+            else:
+                pin_update('language_flags', value=[])
+        else:
+            if value:
+                additional_input += f"set({name}).\n"
+            else:
+                additional_input += f"clear({name}).\n"
+
+    # Update Prover9 assignments
+    additional_input += "if(Prover9).\n"
+    for name in parsed['prover9_assigns']:
+        print(name,'prover9_'+name,parsed['prover9_assigns'][name],PROVER9_PARAMS)
+        if 'prover9_'+name in PROVER9_PARAMS:
+            print(name,parsed['prover9_assigns'][name])
+            try:
+                pin_update('prover9_'+name, value=int(parsed['prover9_assigns'][name]))
+            except ValueError:
+                pin_update('prover9_'+name, value=parsed['prover9_assigns'][name])
+            # TODO: see how pin_update fails
+            # additional_input += f"assign({name}, {parsed['prover9_assigns'][name]}).\n"
+        else:
+            additional_input += f"assign({name}, {parsed['prover9_assigns'][name]}).\n"
+    # Update Prover9 options
+    p9_opt_list = []
+    for name, value in parsed['prover9_options']:
+        if name in PROVER9_FLAGS:
+            if value:
+                p9_opt_list.append(name)
+        else:
+            if value:
+                additional_input += f"set({name}).\n"
+            else:
+                additional_input += f"clear({name}).\n"
+    pin_update('prover9_flags', value=p9_opt_list)
+    additional_input += "end_if.\n"
+    # Update Mace4 options
+    additional_input += "if(Mace4).\n"
+    for name in parsed['mace4_assigns']:
+        if 'mace4_'+name in MACE4_PARAMS:
+            try:
+                pin_update('mace4_'+name, value=int(parsed['mace4_assigns'][name]))
+            except ValueError:
+                pin_update('mace4_'+name, value=parsed['mace4_assigns'][name])
+            # TODO: see how pin_update fails
+            # additional_input += f"assign({name}, {parsed['mace4_assigns'][name]}).\n"
+        else:
+            additional_input += f"assign({name}, {parsed['mace4_assigns'][name]}).\n"
+    additional_input += "end_if.\n"
+    # update mace4 options
+    mace4_opt_list = []
+    for name, value in parsed['mace4_options']:
+        if name in MACE4_FLAGS:
+            if value:
+                mace4_opt_list.append(name)
+        else:
+            if value:
+                additional_input += f"set({name}).\n"
+            else:
+                additional_input += f"clear({name}).\n"
+    #pin_update('mace4_flags', value=mace4_opt_list) #TODO not defined
+    
+    # update additional input
+    pin_update('additional_input', value=additional_input)
 
 # Event handlers
 def load_sample():
@@ -398,154 +551,8 @@ def load_sample():
     content = read_sample(sample)
     
     # Parse the sample to extract assumptions, goals, and options
-    assumptions = ""
-    goals = ""
-    section = None
-    
-    # Options to extract
-    prover9_options = set()
-    mace4_options = set()
-    language_options = set()
-    prover9_assigns = {}
-    mace4_assigns = {}
-    current_program = None
-    
-    for line in content.splitlines():
-        line = line.strip()
-        
-        # Check for section markers
-        if "formulas(assumptions)." in line:
-            section = "assumptions"
-            continue
-        elif "formulas(goals)." in line:
-            section = "goals"
-            continue
-        elif "end_of_list." in line:
-            section = None
-            continue
-        elif "if(Prover9)." in line:
-            current_program = "prover9"
-            continue
-        elif "if(Mace4)." in line:
-            current_program = "mace4"
-            continue
-        elif "end_if." in line:
-            current_program = None
-            continue
-        
-        # Extract content based on current section
-        if section == "assumptions":
-            assumptions += line + "\n"
-        elif section == "goals":
-            goals += line + "\n"
-        # Extract options
-        elif current_program == "prover9":
-            # Check for options in the form: set(option_name).
-            if line.startswith("set(") and line.endswith(")."):
-                option = line[4:-2].strip()
-                prover9_options.add(option)
-            # Check for assignments in the form: assign(option_name, value).
-            elif line.startswith("assign(") and line.endswith(")."):
-                # Extract the option name and value
-                option_parts = line[7:-2].split(',', 1)
-                if len(option_parts) == 2:
-                    option_name = option_parts[0].strip()
-                    option_value = option_parts[1].strip()
-                    prover9_assigns[option_name] = option_value
-        elif current_program == "mace4":
-            # Check for options in the form: set(option_name).
-            if line.startswith("set(") and line.endswith(")."):
-                option = line[4:-2].strip()
-                mace4_options.add(option)
-            # Check for assignments in the form: assign(option_name, value).
-            elif line.startswith("assign(") and line.endswith(")."):
-                # Extract the option name and value
-                option_parts = line[7:-2].split(',', 1)
-                if len(option_parts) == 2:
-                    option_name = option_parts[0].strip()
-                    option_value = option_parts[1].strip()
-                    mace4_assigns[option_name] = option_value
-        # Check for global options outside of if blocks
-        elif current_program is None and not section:
-            if line.startswith("set(") and line.endswith(")."):
-                option = line[4:-2].strip()
-                language_options.add(option)
-    
-    # Update the text areas
-    pin_update('assumptions', value=assumptions)
-    pin_update('goals', value=goals)
-    
-    # Update Prover9 options
-    if 'max_seconds' in prover9_assigns:
-        try:
-            pin_update('max_seconds', value=int(prover9_assigns['max_seconds']))
-        except ValueError:
-            pass
-    
-    if 'max_megs' in prover9_assigns:
-        try:
-            pin_update('max_megs', value=int(prover9_assigns['max_megs']))
-        except ValueError:
-            pass
-    
-    # Update search strategy
-    for strategy in ['auto', 'breadth_first', 'depth_first', 'iterative_depth_first']:
-        if strategy in prover9_options:
-            pin_update('search_strategy', value=strategy)
-            break
-    
-    # Update Prover9 checkboxes
-    prover_checkboxes = []
-    for option in ['build_models', 'print_kept', 'print_given']:
-        if option in prover9_options:
-            prover_checkboxes.append(option)
-    pin_update('prover_options', value=prover_checkboxes)
-    
-    # Update Mace4 options
-    if 'max_seconds' in mace4_assigns:
-        try:
-            pin_update('max_seconds_mace', value=int(mace4_assigns['max_seconds']))
-        except ValueError:
-            pass
-    
-    if 'max_megs' in mace4_assigns:
-        try:
-            pin_update('max_megs_mace', value=int(mace4_assigns['max_megs']))
-        except ValueError:
-            pass
-    
-    if 'start_size' in mace4_assigns:
-        try:
-            pin_update('domain_size', value=int(mace4_assigns['start_size']))
-        except ValueError:
-            pass
-    
-    if 'end_size' in mace4_assigns:
-        try:
-            pin_update('end_size', value=int(mace4_assigns['end_size']))
-        except ValueError:
-            pass
-    
-    if 'max_models' in mace4_assigns:
-        try:
-            pin_update('max_models', value=int(mace4_assigns['max_models']))
-        except ValueError:
-            pass
-    
-    # Update Mace4 checkboxes
-    mace_checkboxes = []
-    for option in ['print_models', 'print_models_portable', 'iterate']:
-        if option in mace4_options:
-            mace_checkboxes.append(option)
-    pin_update('mace_options', value=mace_checkboxes)
-    
-    # Update language options
-    language_checkboxes = []
-    for option in ['auto2', 'equality', 'function_style']:
-        if option in language_options:
-            language_checkboxes.append(option)
-    pin_update('options', value=language_checkboxes)
-    
+    parsed = parse_file(content)
+    update_options(parsed)
     toast(f"File '{sample}' loaded successfully", color='success')
 
 def load_file():
@@ -558,155 +565,13 @@ def load_file():
     content = uploaded['content'].decode('utf-8')
     
     # Parse the uploaded file to extract assumptions, goals, and options
-    assumptions = ""
-    goals = ""
-    section = None
+    parsed = parse_file(content)
     
-    # Options to extract
-    prover9_options = set()
-    mace4_options = set()
-    language_options = set()
-    prover9_assigns = {}
-    mace4_assigns = {}
-    current_program = None
-    
-    for line in content.splitlines():
-        line = line.strip()
-        
-        # Check for section markers
-        if "formulas(assumptions)." in line:
-            section = "assumptions"
-            continue
-        elif "formulas(goals)." in line:
-            section = "goals"
-            continue
-        elif "end_of_list." in line:
-            section = None
-            continue
-        elif "if(Prover9)." in line:
-            current_program = "prover9"
-            continue
-        elif "if(Mace4)." in line:
-            current_program = "mace4"
-            continue
-        elif "end_if." in line:
-            current_program = None
-            continue
-        
-        # Extract content based on current section
-        if section == "assumptions":
-            assumptions += line + "\n"
-        elif section == "goals":
-            goals += line + "\n"
-        # Extract options
-        elif current_program == "prover9":
-            # Check for options in the form: set(option_name).
-            if line.startswith("set(") and line.endswith(")."):
-                option = line[4:-2].strip()
-                prover9_options.add(option)
-            # Check for assignments in the form: assign(option_name, value).
-            elif line.startswith("assign(") and line.endswith(")."):
-                # Extract the option name and value
-                option_parts = line[7:-2].split(',', 1)
-                if len(option_parts) == 2:
-                    option_name = option_parts[0].strip()
-                    option_value = option_parts[1].strip()
-                    prover9_assigns[option_name] = option_value
-        elif current_program == "mace4":
-            # Check for options in the form: set(option_name).
-            if line.startswith("set(") and line.endswith(")."):
-                option = line[4:-2].strip()
-                mace4_options.add(option)
-            # Check for assignments in the form: assign(option_name, value).
-            elif line.startswith("assign(") and line.endswith(")."):
-                # Extract the option name and value
-                option_parts = line[7:-2].split(',', 1)
-                if len(option_parts) == 2:
-                    option_name = option_parts[0].strip()
-                    option_value = option_parts[1].strip()
-                    mace4_assigns[option_name] = option_value
-        # Check for global options outside of if blocks
-        elif current_program is None and not section:
-            if line.startswith("set(") and line.endswith(")."):
-                option = line[4:-2].strip()
-                language_options.add(option)
-    
-    # Update the text areas
-    pin_update('assumptions', value=assumptions)
-    pin_update('goals', value=goals)
-    
-    # Update Prover9 options
-    if 'max_seconds' in prover9_assigns:
-        try:
-            pin_update('max_seconds', value=int(prover9_assigns['max_seconds']))
-        except ValueError:
-            pass
-    
-    if 'max_megs' in prover9_assigns:
-        try:
-            pin_update('max_megs', value=int(prover9_assigns['max_megs']))
-        except ValueError:
-            pass
-    
-    # Update search strategy
-    for strategy in ['auto', 'breadth_first', 'depth_first', 'iterative_depth_first']:
-        if strategy in prover9_options:
-            pin_update('search_strategy', value=strategy)
-            break
-    
-    # Update Prover9 checkboxes
-    prover_checkboxes = []
-    for option in ['build_models', 'print_kept', 'print_given']:
-        if option in prover9_options:
-            prover_checkboxes.append(option)
-    pin_update('prover_options', value=prover_checkboxes)
-    
-    # Update Mace4 options
-    if 'max_seconds' in mace4_assigns:
-        try:
-            pin_update('max_seconds_mace', value=int(mace4_assigns['max_seconds']))
-        except ValueError:
-            pass
-    
-    if 'max_megs' in mace4_assigns:
-        try:
-            pin_update('max_megs_mace', value=int(mace4_assigns['max_megs']))
-        except ValueError:
-            pass
-    
-    if 'start_size' in mace4_assigns:
-        try:
-            pin_update('domain_size', value=int(mace4_assigns['start_size']))
-        except ValueError:
-            pass
-    
-    if 'end_size' in mace4_assigns:
-        try:
-            pin_update('end_size', value=int(mace4_assigns['end_size']))
-        except ValueError:
-            pass
-    
-    if 'max_models' in mace4_assigns:
-        try:
-            pin_update('max_models', value=int(mace4_assigns['max_models']))
-        except ValueError:
-            pass
-    
-    # Update Mace4 checkboxes
-    mace_checkboxes = []
-    for option in ['print_models', 'print_models_portable', 'iterate']:
-        if option in mace4_options:
-            mace_checkboxes.append(option)
-    pin_update('mace_options', value=mace_checkboxes)
-    
-    # Update language options
-    language_checkboxes = []
-    for option in ['auto2', 'equality', 'function_style']:
-        if option in language_options:
-            language_checkboxes.append(option)
-    pin_update('options', value=language_checkboxes)
-    
+    # Parse the sample to extract assumptions, goals, and options
+    parsed = parse_file(content)
+    update_options(parsed)
     toast(f"File '{uploaded['filename']}' loaded successfully", color='success')
+    
 
 def save_input():
     """Save the current input to a file"""
@@ -1184,18 +1049,14 @@ def save_prover9_output():
                 toast("prooftrans binary not found or not executable", color='error')
                 return
             
-            result = subprocess.run(
-                [prooftrans_path, format_value],
-                input=output.encode('utf-8'),
-                capture_output=True,
-                text=True
-            )
+            # Print the command that would be executed
+            print(f"\nWould execute: {prooftrans_path} {format_value}")
+            print("\nInput:")
+            print(output)
+            print("\n" + "="*80 + "\n")
             
-            if result.returncode != 0:
-                toast(f"Error converting output: {result.stderr}", color='error')
-                return
-            
-            content = result.stdout
+            # Return dummy content
+            content = f"[Would convert output to {format_value} format]"
         
         # Ensure content is bytes
         if isinstance(content, str):
@@ -1282,49 +1143,23 @@ def save_mace4_output():
                     toast("isofilter binary not found or not executable", color='error')
                     return
                 
-                # Ensure we're passing string input as bytes to subprocess
-                input_bytes = processed_output.encode('utf-8')
+                # Print the isofilter command that would be executed
+                print(f"\nWould execute: {isofilter_path}")
+                print("\nInput:")
+                print(processed_output)
+                print("\n" + "="*80 + "\n")
                 
-                # Run isofilter first
-                isofilter_result = subprocess.run(
-                    [isofilter_path],
-                    input=input_bytes,
-                    capture_output=True
-                )
-                
-                if isofilter_result.returncode != 0:
-                    stderr = isofilter_result.stderr
-                    if isinstance(stderr, bytes):
-                        stderr = stderr.decode('utf-8')
-                    toast(f"Error filtering isomorphic models: {stderr}", color='error')
-                    return
-                
-                # Output from isofilter is in bytes
-                processed_output = isofilter_result.stdout
-                
-                # Convert back to string for next step
-                if isinstance(processed_output, bytes):
-                    processed_output = processed_output.decode('utf-8')
+                # Simulate isofilter output
+                processed_output = "[Would filter isomorphic models]"
             
-            # Then run interpformat
-            # Ensure we're passing string input as bytes to subprocess
-            input_bytes = processed_output.encode('utf-8')
+            # Print the interpformat command that would be executed
+            print(f"\nWould execute: {interpformat_path} {format_value}")
+            print("\nInput:")
+            print(processed_output)
+            print("\n" + "="*80 + "\n")
             
-            interpformat_result = subprocess.run(
-                [interpformat_path, format_value],
-                input=input_bytes,
-                capture_output=True
-            )
-            
-            if interpformat_result.returncode != 0:
-                stderr = interpformat_result.stderr
-                if isinstance(stderr, bytes):
-                    stderr = stderr.decode('utf-8')
-                toast(f"Error converting output: {stderr}", color='error')
-                return
-            
-            # Output from interpformat is in bytes
-            content = interpformat_result.stdout
+            # Return dummy content
+            content = f"[Would convert output to {format_value} format]"
         
         # Always ensure content is bytes before putting file
         if isinstance(content, str):
