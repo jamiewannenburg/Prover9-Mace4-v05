@@ -490,16 +490,20 @@ def update_process_list() -> None:
             for process in processes:
                 start_time = datetime.fromisoformat(process['start_time'])
                 actions = []
-                
+                clicks = []
                 if process['state'] in ['running', 'suspended']:
                     if process['state'] == 'running':
-                        actions.append(put_button('Pause', onclick=lambda p=process: pause_process(p['pid'])))
+                        actions.append({'label': 'Pause', 'value': 'pause', 'color': 'primary'})
+                        clicks.append(lambda p=process: pause_process(p['pid']))
                     else:
-                        actions.append(put_button('Resume', onclick=lambda p=process: resume_process(p['pid'])))
-                    actions.append(put_button('Kill', onclick=lambda p=process: kill_process(p['pid'])))
+                        actions.append({'label': 'Resume', 'value': 'resume', 'color': 'primary'})
+                        clicks.append(lambda p=process: resume_process(p['pid']))
+                    actions.append({'label': 'Kill', 'value': 'kill', 'color': 'danger'})
+                    clicks.append(lambda p=process: kill_process(p['pid']))
                 
                 if process['state'] == 'done' and process['output']:
-                    actions.append(put_button('Download', onclick=lambda p=process: download_output(p['pid'])))
+                    actions.append({'label': 'Download', 'value': 'download', 'color': 'primary'})
+                    clicks.append(lambda p=process: download_output(p['pid']))
                 
                 put_table([
                     [
@@ -507,7 +511,7 @@ def update_process_list() -> None:
                         process['program'],
                         process['state'],
                         start_time.strftime('%Y-%m-%d %H:%M:%S'),
-                        put_buttons(actions)
+                        put_buttons(actions, onclick=clicks)
                     ]
                 ])
     except requests.exceptions.RequestException as e:
