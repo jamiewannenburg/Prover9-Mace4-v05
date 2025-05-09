@@ -359,11 +359,11 @@ def formula_panel():
             #'theme': 'monokai'
         }),
         put_text("Goals:"),
-        put_textarea('goals', rows=15, code={
+        put_textarea('goals', rows=5, code={
             'mode': 'matlab',
             #'theme': 'monokai'
         }),
-    ], size="10% 5% 40% 5% 40%")
+    ], size="40px 35px 310px 35px 120px")
     
     return content
 
