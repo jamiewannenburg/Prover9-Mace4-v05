@@ -188,15 +188,15 @@ def parse_file(content):
     goals_section = formulas_goals + ZeroOrMore(formula, stop_on=end_of_list) + end_of_list
     
     # Define program blocks
-    prover9_block = if_prover9 + ZeroOrMore(set_option | assign_option | clear_option) + end_if
-    mace4_block = if_mace4 + ZeroOrMore(set_option | assign_option | clear_option) + end_if
+    prover9_block = if_prover9 + ZeroOrMore(comment | set_option | assign_option | clear_option) + end_if
+    mace4_block = if_mace4 + ZeroOrMore(comment | set_option | assign_option | clear_option) + end_if
     
     # Define global options
-    global_options = ZeroOrMore(set_option | assign_option | clear_option)
+    #global_options = ZeroOrMore(set_option | assign_option | clear_option)
     
     # Define the complete grammar 
-    grammar = Optional(ZeroOrMore(comment)) + Optional(global_options) + Optional(ZeroOrMore(comment)) + Optional(ZeroOrMore(language_option)) + Optional(ZeroOrMore(comment)) + Optional(prover9_block) + Optional(ZeroOrMore(comment)) + Optional(mace4_block) + Optional(ZeroOrMore(comment)) + Optional(assumptions_section) + Optional(ZeroOrMore(comment)) + Optional(goals_section)
-    
+    #grammar = Optional(ZeroOrMore(comment)) + Optional(global_options) + Optional(ZeroOrMore(comment)) + Optional(ZeroOrMore(language_option)) + Optional(ZeroOrMore(comment)) + Optional(prover9_block) + Optional(ZeroOrMore(comment)) + Optional(mace4_block) + Optional(ZeroOrMore(comment)) + Optional(assumptions_section) + Optional(ZeroOrMore(comment)) + Optional(goals_section)
+    grammar = ZeroOrMore( comment | prover9_block | mace4_block | assumptions_section | goals_section | set_option | assign_option | clear_option | language_option)
     # TODO: leave room for additional input
 
     # Parse the content
@@ -294,7 +294,7 @@ def prover9_mace4_app():
         put_scope('setup_panel'),
         put_scope('process_details'),
         put_scope('api_config'),
-    ],size='100px')
+    ], size="5% 60% 37% 2%")
     
 
 
@@ -354,12 +354,12 @@ def formula_panel():
         ]),
         put_text("Assumptions:"),
         put_textarea('assumptions', rows=15, code={
-            'mode': 'prolog',
+            'mode': 'matlab',
             #'theme': 'monokai'
         }),
         put_text("Goals:"),
         put_textarea('goals', rows=15, code={
-            'mode': 'prolog',
+            'mode': 'matlab',
             #'theme': 'monokai'
         }),
     ], size="10% 5% 40% 5% 40%")
@@ -368,16 +368,15 @@ def formula_panel():
 
 def language_options_panel():
     """Panel for language options"""
-    content = put_row([
+    content = put_column([
         put_checkbox('language_flags', options=[
             {'label': 'Prolog-Style Variables', 'value': 'prolog_style_variables'}
         ]),
-        put_text("Language Options:"),
         put_textarea('language_options', rows=15, code={
-            'mode': 'prolog',
+            'mode': 'matlab',
             #'theme': 'monokai'
         }),
-    ])
+    ], size="2% 98%")
     
     return content
 
@@ -459,7 +458,7 @@ def mace4_options_panel():
 def additional_input_panel():
     """Panel for additional input"""
     content = put_textarea('additional_input', rows=15, placeholder="Additional input for Prover9 or Mace4...", code={
-        'mode': 'prolog',
+        'mode': 'matlab',
         #'theme': 'monokai'
     })
     
@@ -630,7 +629,11 @@ def update_options(parsed):
             # TODO: see how pin_update fails
             # additional_input += f"assign({name}, {parsed['mace4_assigns'][name]}).\n"
         else:
-            additional_m4_assigns += f"assign({name}, {parsed['mace4_assigns'][name]}).\n"
+            if name == "domain_size":
+                pin_update('mace4_start_size', value=int(parsed['mace4_assigns'][name]))
+                pin_update('mace4_end_size', value=int(parsed['mace4_assigns'][name]))
+            else:
+                additional_m4_assigns += f"  assign({name}, {parsed['mace4_assigns'][name]}).\n"
             
     # update mace4 options
     m4_opt_list = []
@@ -864,11 +867,11 @@ def download_output(process_id: int) -> None:
                 # Determine file extension based on program
                 ext = {
                     'prover9': 'proof',
-                    'mace4': 'model',
-                    'isofilter': 'filtered',
-                    'isofilter2': 'filtered2',
-                    'interpformat': 'formatted',
-                    'prooftrans': 'transformed'
+                    'mace4': 'out',
+                    'isofilter': 'model',
+                    'isofilter2': 'model',
+                    'interpformat': 'model',
+                    'prooftrans': 'proof'
                 }.get(process['program'], 'txt')
                 
                 # Create filename
