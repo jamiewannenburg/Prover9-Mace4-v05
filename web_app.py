@@ -348,10 +348,10 @@ def formula_panel():
     """Panel for entering assumptions and goals"""
     content = put_column([
         put_row([
-            put_button("Load Sample", onclick=load_sample),
-            put_button("Load File", onclick=load_file),
-            put_button("Save Input", onclick=save_input),
-            put_button("Clear", onclick=lambda: [pin_update('assumptions', value=''), pin_update('goals', value='')]),
+            put_button("💾 Save", onclick=save_input),
+            put_button("📄 Open", onclick=load_file),
+            put_button("Samples", onclick=load_sample),
+            put_button("🧹 Clear", onclick=lambda: [pin_update('assumptions', value=''), pin_update('goals', value='')]),
         ]),
         put_text("Assumptions:"),
         put_textarea('assumptions', rows=15, code={
@@ -470,12 +470,12 @@ def run_panel():
     with use_scope('run_panel'):
         put_row([
             put_image(Image.open('src/Images/prover9-5a-128t.gif'), format='gif', title=BANNER ,height='30px'),
-            put_button("Start", onclick=run_prover9, color='primary'),
+            put_button("▶️", onclick=run_prover9, color='primary'),
             None,
             put_image(Image.open('src/Images/mace4-90t.gif'), format='gif', title=BANNER ,height='30px'),
-            put_button("Start", onclick=run_mace4, color='primary'),
+            put_button("▶️", onclick=run_mace4, color='primary'),
 
-        ])
+        ],size="80px 20px 100px 60px 20px")
         
 
 def update_process_list() -> None:
@@ -511,7 +511,7 @@ def update_process_list() -> None:
                     clicks.append(lambda p=process_id: kill_process(p))
                 
                 if process['state'] == 'done' and process['output']:
-                    actions.append({'label': 'Download', 'value': str(process_id)+'download', 'color': 'primary'})
+                    actions.append({'label': '📥', 'value': str(process_id)+'download', 'color': 'primary'})
                     clicks.append(lambda p=process_id: download_output(p))
                 
                 table.append([
