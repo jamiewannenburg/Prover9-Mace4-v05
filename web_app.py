@@ -292,12 +292,13 @@ def prover9_mace4_app():
     put_column([
         put_scope('run_panel'),
         put_scope('setup_panel'),
-        put_scope('process_details'),
+        put_row([
+            put_scope('process_list'),
+            put_scope('process_details'),
+        ],size="60% 40%"),
         put_scope('api_config'),
-    ], size="5% 60% 37% 2%")
+    ], size="30px") #, size="5% 60% 37% 2%"
     
-
-
     # init api url
     dotenv.load_dotenv() # load environment variables from .env file
     if 'PROVER9_API_URL' in os.environ: # API URL is stored in environment variable
@@ -415,7 +416,7 @@ MACE4_PARAMS = [
     'mace4_start_size',
     'mace4_end_size',
     'mace4_max_models',
-    'mace4_max_seconds_per_model',
+    'mace4_max_seconds_per',
     'mace4_increment',
     'mace4_iterate',
 ]
@@ -432,7 +433,7 @@ def mace4_options_panel():
             put_input('mace4_start_size', label='Start Size', type=NUMBER, value=2),
             put_input('mace4_end_size', label='End Size', type=NUMBER, value=10),
             put_input('mace4_max_models', label='Max Models', type=NUMBER, value=1),
-            put_input('mace4_max_seconds_per_model', label='Max Seconds Per Model', type=NUMBER, value=-1),
+            put_input('mace4_max_seconds_per', label='Max Seconds Per Model', type=NUMBER, value=-1),
             put_input('mace4_increment', label='Increment', type=NUMBER, value=1),
             put_select('mace4_iterate', label='Iterate', options=['all','evens','odds','primes','nonprimes'], value='all'),
 
@@ -468,10 +469,10 @@ def run_panel():
     """Run panel with controls and output display"""
     with use_scope('run_panel'):
         put_row([
-            put_image(Image.open('src/Images/prover9-5a-128t.gif'), format='gif', title=BANNER),
+            put_image(Image.open('src/Images/prover9-5a-128t.gif'), format='gif', title=BANNER ,height='30px'),
             put_button("Start", onclick=run_prover9, color='primary'),
             None,
-            put_image(Image.open('src/Images/mace4-90t.gif'), format='gif', title=BANNER),
+            put_image(Image.open('src/Images/mace4-90t.gif'), format='gif', title=BANNER ,height='30px'),
             put_button("Start", onclick=run_mace4, color='primary'),
 
         ])
@@ -499,21 +500,22 @@ def update_process_list() -> None:
                     if process['state'] == 'running':
                         # windows cannot pause a process
                         if os.name != 'nt':
-                            actions.append({'label': 'Pause', 'value': 'pause', 'color': 'primary'})
+                            actions.append({'label': 'Pause', 'value': str(process_id)+'pause', 'color': 'primary'})
                             clicks.append(lambda p=process_id: pause_process(p))
                     else:
                         # windows cannot resume a process
                         if os.name != 'nt':
-                            actions.append({'label': 'Resume', 'value': 'resume', 'color': 'primary'})
+                            actions.append({'label': 'Resume', 'value': str(process_id)+'resume', 'color': 'primary'})
                             clicks.append(lambda p=process_id: resume_process(p))
-                    actions.append({'label': 'Kill', 'value': 'kill', 'color': 'danger'})
+                    actions.append({'label': 'Kill', 'value': str(process_id)+'kill', 'color': 'danger'})
                     clicks.append(lambda p=process_id: kill_process(p))
                 
                 if process['state'] == 'done' and process['output']:
-                    actions.append({'label': 'Download', 'value': 'download', 'color': 'primary'})
+                    actions.append({'label': 'Download', 'value': str(process_id)+'download', 'color': 'primary'})
                     clicks.append(lambda p=process_id: download_output(p))
+                
                 table.append([
-                        str(process_id),
+                        put_button(label=str(process_id),onclick=lambda p=process_id: show_process_details(p), color='primary'),
                         process['program'],
                         process['state'],
                         start_time.strftime('%Y-%m-%d %H:%M:%S'),
@@ -533,16 +535,17 @@ def show_process_details(process_id: int) -> None:
             process = response.json()
             
             with use_scope('process_details', clear=True):
-                put_markdown(f"## Process {process_id} Details")
-                put_text(format_process_info(process))
-                
-                if process['error']:
-                    put_markdown("### Error")
-                    put_text(process['error'])
-                
-                if process['output']:
-                    put_markdown("### Output")
-                    put_text(process['output'])
+                with put_scrollable():
+                    put_markdown(f"## Process {process_id} Details")
+                    put_text(format_process_info(process))
+                    
+                    if process['error']:
+                        put_markdown("### Error")
+                        put_text(process['error'])
+                    
+                    if process['output']:
+                        put_markdown("### Output")
+                        put_text(process['output'])
         else:
             toast(f"Error getting process details: {response.text}", color='error')
     except requests.exceptions.RequestException as e:
