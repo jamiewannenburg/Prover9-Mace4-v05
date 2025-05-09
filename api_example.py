@@ -34,7 +34,10 @@ response = requests.post("http://localhost:8000/start", json={
 })
 process_mace4_id = response.json()["process_id"]
 
-time.sleep(1)
+# wait for mace4 to finish
+while requests.get(f"http://localhost:8000/status/{process_mace4_id}").json()["state"] != "done":
+    time.sleep(1)
+
 status_mace4 = requests.get(f"http://localhost:8000/status/{process_mace4_id}").json()
 #print(status_mace4["output"])
 
@@ -48,7 +51,10 @@ response = requests.post("http://localhost:8000/start", json={
 })
 process_interpformat_id = response.json()["process_id"]
 
-time.sleep(1)
+# wait for interpformat to finish
+while requests.get(f"http://localhost:8000/status/{process_interpformat_id}").json()["state"] != "done":
+    time.sleep(1)
+
 status_interpformat = requests.get(f"http://localhost:8000/status/{process_interpformat_id}").json()
 #print(status_interpformat["output"])
 
@@ -63,7 +69,10 @@ response = requests.post("http://localhost:8000/start", json={
 })
 process_isofilter_id = response.json()["process_id"]
 
-time.sleep(1)
+# wait for isofilter to finish
+while requests.get(f"http://localhost:8000/status/{process_isofilter_id}").json()["state"] != "done":
+    time.sleep(1)
+
 status_isofilter = requests.get(f"http://localhost:8000/status/{process_isofilter_id}").json()
 #print(status_isofilter["output"])
 
@@ -79,6 +88,9 @@ response = requests.post("http://localhost:8000/start", json={
 })
 process_prooftrans_id = response.json()["process_id"]
 
-time.sleep(1)
+# wait for prooftrans to finish
+while requests.get(f"http://localhost:8000/status/{process_prooftrans_id}").json()["state"] != "done":
+    time.sleep(1)
+
 status_prooftrans = requests.get(f"http://localhost:8000/status/{process_prooftrans_id}").json()
 #print(status_prooftrans["output"])

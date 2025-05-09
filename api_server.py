@@ -123,7 +123,15 @@ def get_program_path(program: ProgramType) -> Optional[str]:
         ProgramType.INTERPFORMAT: 'interpformat',
         ProgramType.PROOFTRANS: 'prooftrans'
     }
-    return os.path.join(BIN_DIR, program_map[program])
+    path = os.path.join(BIN_DIR, program_map[program])
+    if os.path.isfile(path + '.bat'):
+        return path + '.bat'
+    elif os.path.isfile(path + '.sh'):
+        return path + '.sh'
+    elif os.path.isfile(path + '.exe'):
+        return path + '.exe'
+    else:
+        return path
 
 def get_process_stats(pid: int) -> Dict:
     """Get process resource usage statistics"""
@@ -327,10 +335,11 @@ async def get_status(process_id: int) -> ProcessInfo:
         return processes[process_id]
 
 @app.get("/processes")
-async def list_processes() -> List[ProcessInfo]:
+async def list_processes() -> List[int]:
     """List all tracked processes"""
     with process_lock:
-        return list(processes.values())
+        print(list(processes.keys()))
+        return list(processes.keys())
 
 @app.post("/kill/{process_id}")
 async def kill_process(process_id: int) -> Dict:
@@ -363,7 +372,9 @@ async def pause_process(process_id: int) -> Dict:
         process_info = processes[process_id]
         if process_info.state != ProcessState.RUNNING:
             raise HTTPException(status_code=400, detail="Process is not running")
-
+        # windows cannot pause a process
+        if os.name == 'nt':
+            raise HTTPException(status_code=400, detail="Windows cannot pause a process")
         # Update state and send signal
         process_info.state = ProcessState.SUSPENDED
         os.kill(process_info.pid, signal.SIGSTOP)
@@ -379,7 +390,9 @@ async def resume_process(process_id: int) -> Dict:
         process_info = processes[process_id]
         if process_info.state != ProcessState.SUSPENDED:
             raise HTTPException(status_code=400, detail="Process is not paused")
-
+        # windows cannot resume a process
+        if os.name == 'nt':
+            raise HTTPException(status_code=400, detail="Windows cannot resume a process")
         # Update state and send signal
         process_info.state = ProcessState.RUNNING
         os.kill(process_info.pid, signal.SIGCONT)

@@ -32,7 +32,6 @@ from pywebio import config, start_server
 from pywebio.platform.flask import webio_view
 
 # Constants
-BIN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'bin')
 SAMPLE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src', 'Samples')
 PROGRAM_NAME = 'Prover9-Mace4'
 PROGRAM_VERSION = '0.5 Web'
@@ -213,7 +212,7 @@ def parse_file(content):
             'mace4_options': set(),
             'global_options': set(),
             'global_assigns': {},
-            'language_options': set(),
+            'language_options': '',
             'prover9_assigns': {},
             'mace4_assigns': {}
         }
@@ -224,7 +223,7 @@ def parse_file(content):
         'goals': '',
         'prover9_options': set(),
         'mace4_options': set(),
-        'language_options': set(),
+        'language_options': '',
         'global_options': set(),
         'global_assigns': {},
         'prover9_assigns': {},
@@ -274,7 +273,7 @@ def parse_file(content):
             else:
                 parsed['global_assigns'][option_name] = option_value
         elif item[0] == "op":
-            parsed['language_options'].add(item[1:])
+            parsed['language_options']+='op('+', '.join(item[1:-1])+').\n'
         elif current_section == "assumptions":
             # concatenate the item list to a string
             parsed['assumptions'] += ''.join(item)+'\n'
@@ -287,6 +286,18 @@ def parse_file(content):
 def prover9_mace4_app():
     """Main application function"""
     
+    set_env(output_max_width='90%',title=f"{PROGRAM_NAME}")
+
+    # Create layout with setup and run panels
+    put_column([
+        put_scope('run_panel'),
+        put_scope('setup_panel'),
+        put_scope('process_details'),
+        put_scope('api_config'),
+    ],size='100px')
+    
+
+
     # init api url
     dotenv.load_dotenv() # load environment variables from .env file
     if 'PROVER9_API_URL' in os.environ: # API URL is stored in environment variable
@@ -298,15 +309,6 @@ def prover9_mace4_app():
             api_url = input("API Server URL", type=TEXT, value=get_api_url())
             set_api_url(api_url)
 
-    set_env(output_max_width='90%',title=f"{PROGRAM_NAME}")
-
-    # Create layout with setup and run panels
-    put_column([
-        put_scope('run_panel'),
-        put_scope('setup_panel'),
-        put_scope('process_details')
-    ], size='100%')
-    
     # Populate the panels
     run_panel()
     setup_panel()
@@ -332,7 +334,7 @@ def prover9_mace4_app():
 
 def setup_panel():
     """Setup panel with formula input and options"""
-    with use_scope('setup_panel', clear=True):
+    with use_scope('setup_panel'):
         put_tabs([
             {'title': 'Formulas', 'content': formula_panel()},
             {'title': 'Language Options', 'content': language_options_panel()},
@@ -388,8 +390,8 @@ PROVER9_PARAMS = [
 ]
 
 PROVER9_FLAGS = [
-    'expand_relational_defs',
-    'restrict_denials',
+    ('expand_relational_defs',True),
+    ('restrict_denials',True),
 ]
 
 def prover9_options_panel():
@@ -403,7 +405,7 @@ def prover9_options_panel():
             put_select('prover9_order', label='Order', options=['lpo','rpo','kb'], value='lpo'),
             put_select('prover9_eq_defs', label='Equality Defs', options=['unfold','fold','pass'], value='unfold'),
             put_checkbox('prover9_flags', label='Prover9 Flags', options=['expand_relational_defs','restrict_denials'], value=False),
-        ], size='1/2'),
+        ]),
         # TODO Advanced Options, to many for now
     ])
     
@@ -465,7 +467,7 @@ def additional_input_panel():
 
 def run_panel():
     """Run panel with controls and output display"""
-    with use_scope('run_panel', clear=True):
+    with use_scope('run_panel'):
         put_row([
             put_image(Image.open('src/Images/prover9-5a-128t.gif'), format='gif', title=BANNER),
             put_button("Start", onclick=run_prover9, color='primary'),
@@ -479,41 +481,48 @@ def run_panel():
 def update_process_list() -> None:
     """Update the process list display"""
     try:
-        response = requests.get(f"{get_api_url()}/processes")
-        processes = response.json()
+        # first get all the data
         
-        with use_scope('process_list', clear=True):
-            put_table([
-                ['ID', 'Program', 'Status', 'Start Time', 'Actions']
-            ])
-            
+        response = requests.get(f"{get_api_url()}/processes")
+        process_ids = response.json()
+        processes = []
+        table = [
+            ['ID', 'Program', 'Status', 'Start Time', 'Actions']
+        ]
+        for process_id in process_ids:
+            process = requests.get(f"{get_api_url()}/status/{process_id}").json()
+            processes.append(process)
             for process in processes:
                 start_time = datetime.fromisoformat(process['start_time'])
                 actions = []
                 clicks = []
                 if process['state'] in ['running', 'suspended']:
                     if process['state'] == 'running':
-                        actions.append({'label': 'Pause', 'value': 'pause', 'color': 'primary'})
-                        clicks.append(lambda p=process: pause_process(p['pid']))
+                        # windows cannot pause a process
+                        if os.name != 'nt':
+                            actions.append({'label': 'Pause', 'value': 'pause', 'color': 'primary'})
+                            clicks.append(lambda p=process_id: pause_process(p))
                     else:
-                        actions.append({'label': 'Resume', 'value': 'resume', 'color': 'primary'})
-                        clicks.append(lambda p=process: resume_process(p['pid']))
+                        # windows cannot resume a process
+                        if os.name != 'nt':
+                            actions.append({'label': 'Resume', 'value': 'resume', 'color': 'primary'})
+                            clicks.append(lambda p=process_id: resume_process(p))
                     actions.append({'label': 'Kill', 'value': 'kill', 'color': 'danger'})
-                    clicks.append(lambda p=process: kill_process(p['pid']))
+                    clicks.append(lambda p=process_id: kill_process(p))
                 
                 if process['state'] == 'done' and process['output']:
                     actions.append({'label': 'Download', 'value': 'download', 'color': 'primary'})
-                    clicks.append(lambda p=process: download_output(p['pid']))
-                
-                put_table([
-                    [
-                        str(process['pid']),
+                    clicks.append(lambda p=process_id: download_output(p))
+                table.append([
+                        str(process_id),
                         process['program'],
                         process['state'],
                         start_time.strftime('%Y-%m-%d %H:%M:%S'),
                         put_buttons(actions, onclick=clicks)
-                    ]
-                ])
+                    ])
+        with use_scope('process_list', clear=True):
+            put_table(table)
+            
     except requests.exceptions.RequestException as e:
         toast(f"Error updating process list: {str(e)}", color='error')
 
@@ -549,7 +558,7 @@ def update_options(parsed):
     # Update language options
     language_input = ""
     for item in parsed['language_options']:
-        language_input += "op(" + ', '.join(item) + ").\n"
+        language_input += item
     pin_update('language_options', value=language_input)
 
     additional_input = ""
@@ -574,7 +583,7 @@ def update_options(parsed):
                 additional_input += f"clear({name}).\n"
 
     # Update Prover9 assignments
-    additional_input += "if(Prover9).\n"
+    additional_p9_assigns = ''
     for name in parsed['prover9_assigns']:
         if 'prover9_'+name in PROVER9_PARAMS:
             try:
@@ -584,22 +593,34 @@ def update_options(parsed):
             # TODO: see how pin_update fails
             # additional_input += f"assign({name}, {parsed['prover9_assigns'][name]}).\n"
         else:
-            additional_input += f"assign({name}, {parsed['prover9_assigns'][name]}).\n"
+            additional_p9_assigns += f"assign({name}, {parsed['prover9_assigns'][name]}).\n"
     # Update Prover9 options
     p9_opt_list = []
+    p9_opt_set = []
+    additional_p9_flags = ''
     for name, value in parsed['prover9_options']:
-        if name in PROVER9_FLAGS:
+        if name in PROVER9_FLAGS.map(lambda x: x[0]):
+            p9_opt_set.append(name)
             if value:
                 p9_opt_list.append(name)
         else:
             if value:
-                additional_input += f"set({name}).\n"
+                additional_p9_flags += f"set({name}).\n"
             else:
-                additional_input += f"clear({name}).\n"
+                additional_p9_flags += f"clear({name}).\n"
+    for name,default in PROVER9_FLAGS:
+        if name not in p9_opt_set:
+            if default:
+                p9_opt_list.append(name)
+
     pin_update('prover9_flags', value=p9_opt_list)
-    additional_input += "end_if.\n"
+    if len(additional_p9_assigns) > 0 or len(additional_p9_flags) > 0:
+        additional_input += "if(Prover9).\n"
+        additional_input += additional_p9_assigns
+        additional_input += additional_p9_flags
+        additional_input += "end_if.\n"
     # Update Mace4 options
-    additional_input += "if(Mace4).\n"
+    additional_m4_assigns = ''
     for name in parsed['mace4_assigns']:
         if 'mace4_'+name in MACE4_PARAMS:
             try:
@@ -609,20 +630,33 @@ def update_options(parsed):
             # TODO: see how pin_update fails
             # additional_input += f"assign({name}, {parsed['mace4_assigns'][name]}).\n"
         else:
-            additional_input += f"assign({name}, {parsed['mace4_assigns'][name]}).\n"
-    additional_input += "end_if.\n"
+            additional_m4_assigns += f"assign({name}, {parsed['mace4_assigns'][name]}).\n"
+            
     # update mace4 options
-    mace4_opt_list = []
+    m4_opt_list = []
+    m4_opt_set = []
+    additional_m4_flags = ''
     for name, value in parsed['mace4_options']:
-        if name in MACE4_FLAGS:
+        if name in MACE4_FLAGS.map(lambda x: x[0]):
+            m4_opt_set.append(name)
             if value:
-                mace4_opt_list.append(name)
+                m4_opt_list.append(name)
         else:
             if value:
-                additional_input += f"set({name}).\n"
+                additional_m4_flags += f"set({name}).\n"
             else:
-                additional_input += f"clear({name}).\n"
-    #pin_update('mace4_flags', value=mace4_opt_list) #TODO not defined
+                additional_m4_flags += f"clear({name}).\n"
+    for name,default in MACE4_FLAGS:
+        if name not in m4_opt_set:
+            if default:
+                m4_opt_list.append(name)
+
+    #pin_update('mace4_flags', value=m4_opt_list) #TODO not defined
+    if len(additional_m4_assigns) > 0 or len(additional_m4_flags) > 0:
+        additional_input += "if(Mace4).\n"
+        additional_input += additional_m4_assigns
+        additional_input += additional_m4_flags
+        additional_input += "end_if.\n"
     
     # update additional input
     pin_update('additional_input', value=additional_input)
@@ -676,49 +710,91 @@ def generate_input():
     """Generate input for Prover9/Mace4"""
     assumptions = pin.assumptions
     goals = pin.goals
-    additional = pin.additional_input if hasattr(pin, 'additional_input') else ""
+    parsed = parse_file(pin.additional_input)
     #TODO kill things that will be redefined
 
     # Start with optional settings
     content = "% Saved by Prover9-Mace4 Web GUI\n\n"
-    content += "set(ignore_option_dependencies). % GUI handles dependencies\n\n"
+    #content += "set(ignore_option_dependencies). % GUI handles dependencies\n\n" #TODO: I'm not handling dependencies
     
     # Add language options
     if "prolog_style_variables" in pin.language_flags:
         content += "set(prolog_style_variables).\n"
     content += pin.language_options
+    content += parsed['language_options']
 
     # Add Prover9 options
     content += "if(Prover9). % Options for Prover9\n"
+    # TODO add default values?
     for name in PROVER9_PARAMS:
         pname = re.sub('prover9_', "", name)
-        if hasattr(pin, pname):
-            content += f"  assign({name}, {pin[pname]}).\n"
-    for name in PROVER9_FLAGS:
-        if name in pin.prover9_flags:
+        if pin[name] is not None:
+            content += f"  assign({pname}, {pin[name]}).\n"
+    for name in parsed['prover9_assigns']:
+        content += f"  assign({name}, {parsed['prover9_assigns'][name]}).\n"
+    for name,default in PROVER9_FLAGS:
+        value = (name in pin.prover9_flags)
+        if value != default:
+            if value:
+                content += f"  set({name}).\n"
+            else:
+                content += f"  clear({name}).\n"
+    for name,value in parsed['prover9_options']:
+        if value:
             content += f"  set({name}).\n"
+        else:
+            content += f"  clear({name}).\n"
     content += "end_if.\n\n"
     
     # Add Mace4 options
     content += "if(Mace4).   % Options for Mace4\n"
     for name in MACE4_PARAMS:
         pname = re.sub('mace4_', "", name)
-        if hasattr(pin, pname):
-            content += f"  assign({name}, {pin[pname]}).\n"
-    for name in MACE4_FLAGS:
-        if name in pin.mace4_flags:
+        if pin[name] is not None:
+            content += f"  assign({pname}, {pin[name]}).\n"
+    for name in parsed['mace4_assigns']:
+        content += f"  assign({name}, {parsed['mace4_assigns'][name]}).\n"
+    for name,default in MACE4_FLAGS:
+        value = (name in pin.mace4_flags)
+        if value != default:
+            if value:
+                content += f"  set({name}).\n"
+            else:
+                content += f"  clear({name}).\n"
+    for name,value in parsed['mace4_options']:
+        if value:
             content += f"  set({name}).\n"
-            
+        else:
+            content += f"  clear({name}).\n"
     content += "end_if.\n\n"
     
     # Add assumptions, goals and additional content
+    
+    parsed = {
+        'assumptions': '',
+        'goals': '',
+        'prover9_options': set(),
+        'mace4_options': set(),
+        'language_options': '',
+        'global_options': set(),
+        'global_assigns': {},
+        'prover9_assigns': {},
+        'mace4_assigns': {}
+    }
+    for name in parsed['global_assigns']:
+        content += f"assign({name}, {parsed['global_assigns'][name]}).\n"
+    for name,value in parsed['global_options']:
+        if value:
+            content += f"set({name}).\n"
+        else:
+            content += f"clear({name}).\n"
+        
     content += "formulas(assumptions).\n"
     content += assumptions + "\n"
     content += "end_of_list.\n\n"
     content += "formulas(goals).\n"
     content += goals + "\n"
     content += "end_of_list.\n\n"
-    content += additional
     return content
 
 
@@ -828,8 +904,9 @@ def run_mace4():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=f'{PROGRAM_NAME} Web GUI')
     parser.add_argument('--port', type=int, default=8080, help='Port to run the web server on')
+    parser.add_argument('--host', type=str, default='127.0.0.1', help='Host to run the web server on')
     parser.add_argument('--debug', action='store_true', help='Run in debug mode')
     args = parser.parse_args()
     
     # Use PyWebIO's start_server directly
-    start_server(prover9_mace4_app, port=args.port, debug=args.debug) 
+    start_server(prover9_mace4_app, port=args.port, debug=args.debug, host=args.host) 
